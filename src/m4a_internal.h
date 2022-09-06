@@ -82,7 +82,6 @@ struct ToneData {
     union {
         struct WaveData *wav;
         struct ToneData *group;
-        uint32_t *cgb3Sample;
         uint32_t squareNoiseConfig;
     };
     union {
@@ -306,7 +305,7 @@ struct SoundInfo {
 };
 
 struct SongHeader {
-    // uint32_t offset;
+    uint32_t offset;
     uint8_t trackCount;
     uint8_t blockCount;
     uint8_t priority;
@@ -473,8 +472,6 @@ struct MusicPlayer {
 
 struct Song {
     struct SongHeader *header;
-    uint16_t ms;
-    uint16_t me;
 };
 
 struct AudioCGB {
