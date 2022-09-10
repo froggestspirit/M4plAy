@@ -28,7 +28,7 @@ float *RunMixerFrame(uint16_t samplesPerFrame) {
         playerCounter -= mixer->updateRate;
     }
 
-    float *m4aBuffer = mixer->outBuffer;
+    float *m4aBuffer = mixer->pcmBuffer;
 
     SampleMixer(mixer, samplesPerFrame, m4aBuffer, MIXED_AUDIO_BUFFER_SIZE);
     cgb_audio_generate(samplesPerFrame);
@@ -37,20 +37,21 @@ float *RunMixerFrame(uint16_t samplesPerFrame) {
     float *cgbBuffer = cgb_get_buffer();
 
     for (uint32_t i = 0; i < samplesPerFrame; i++)
-        audioBuffer[i] = m4aBuffer[i] + (cgbBuffer[i] * 1.5);
-
+        audioBuffer[i] = m4aBuffer[i] + cgbBuffer[i];
+    // printf("spf: %d\n", samplesPerFrame * 4);
+    //  SDL_QueueAudio(1, audioBuffer, samplesPerFrame * 4);
     return audioBuffer;
 }
 
-void SampleMixer(struct SoundInfo *mixer, uint16_t samplesPerFrame, float *outBuffer, uint16_t maxBufSize) {
+void SampleMixer(struct SoundInfo *mixer, uint16_t samplesPerFrame, float *pcmBuffer, uint16_t maxBufSize) {
     uint32_t reverb = mixer->reverb;
     if (reverb) {
         // The vanilla reverb effect outputs a mono sound from four sources:
         //  - L/R channels as they were mixer->framesPerDmaCycle frames ago
         //  - L/R channels as they were (mixer->framesPerDmaCycle - 1) frames ago
-        float *tmp1 = outBuffer;
+        float *tmp1 = pcmBuffer;
         float *tmp2;
-        tmp2 = outBuffer + samplesPerFrame * 2;
+        tmp2 = pcmBuffer + samplesPerFrame * 2;
         uint_fast16_t i = 0;
         do {
             float s = tmp1[0] + tmp1[1] + tmp2[0] + tmp2[1];
@@ -61,12 +62,12 @@ void SampleMixer(struct SoundInfo *mixer, uint16_t samplesPerFrame, float *outBu
         } while (++i < samplesPerFrame);
     } else {
         for (int i = 0; i < samplesPerFrame; i++) {
-            float *dst = &outBuffer[i * 2];
+            float *dst = &pcmBuffer[i * 2];
             dst[1] = dst[0] = 0.0f;
         }
     }
 
-    float sampleRateReciprocal = mixer->sampleRateReciprocal;
+    float divFreq = mixer->divFreq;
     int_fast8_t numChans = mixer->numChans;
     struct SoundChannel *chan = mixer->chans;
 
@@ -74,7 +75,7 @@ void SampleMixer(struct SoundInfo *mixer, uint16_t samplesPerFrame, float *outBu
         struct WaveData *wav = chan->wav;
 
         if (TickEnvelope(chan, wav)) {
-            GenerateAudio(mixer, chan, wav, outBuffer, samplesPerFrame, sampleRateReciprocal);
+            GenerateAudio(mixer, chan, wav, pcmBuffer, samplesPerFrame, divFreq);
         }
     }
 }
@@ -171,7 +172,7 @@ static inline uint32_t TickEnvelope(struct SoundChannel *chan, struct WaveData *
         // Init channel
         chan->status = 3;
         chan->current = wav->data;
-        chan->ct = wav->size;
+        chan->count = wav->size;
         chan->fw = 0;
         chan->envelopeVol = 0;
         if (wav->loopFlags & 0xC0) {
@@ -181,7 +182,7 @@ static inline uint32_t TickEnvelope(struct SoundChannel *chan, struct WaveData *
     }
 }
 
-static inline void GenerateAudio(struct SoundInfo *mixer, struct SoundChannel *chan, struct WaveData *wav, float *outBuffer, uint16_t samplesPerFrame, float sampleRateReciprocal) { /*, [[[]]]) {*/
+static inline void GenerateAudio(struct SoundInfo *mixer, struct SoundChannel *chan, struct WaveData *wav, float *pcmBuffer, uint16_t samplesPerFrame, float divFreq) { /*, [[[]]]) {*/
     uint_fast8_t v = chan->envelopeVol * (mixer->masterVol + 1) / 16U;
     chan->envelopeVolR = chan->rightVol * v / 256U;
     chan->envelopeVolL = chan->leftVol * v / 256U;
@@ -192,16 +193,16 @@ static inline void GenerateAudio(struct SoundInfo *mixer, struct SoundChannel *c
         loopStart = wav->data + wav->loopStart;
         loopLen = wav->size - wav->loopStart;
     }
-    int32_t samplesLeftInWav = chan->ct;
+    int32_t samplesLeftInWav = chan->count;
     int8_t *current = chan->current;
     signed envR = chan->envelopeVolR;
     signed envL = chan->envelopeVolL;
     if (chan->type & 8) {
-        for (uint16_t i = 0; i < samplesPerFrame; i++, outBuffer += 2) {
+        for (uint16_t i = 0; i < samplesPerFrame; i++, pcmBuffer += 2) {
             int_fast8_t c = *(current++);
 
-            outBuffer[1] += (c * envR) / 32768.0f;
-            outBuffer[0] += (c * envL) / 32768.0f;
+            pcmBuffer[1] += (c * envR) / 32768.0f;
+            pcmBuffer[0] += (c * envL) / 32768.0f;
             if (--samplesLeftInWav == 0) {
                 samplesLeftInWav = loopLen;
                 if (loopLen != 0) {
@@ -213,23 +214,23 @@ static inline void GenerateAudio(struct SoundInfo *mixer, struct SoundChannel *c
             }
         }
 
-        chan->ct = samplesLeftInWav;
+        chan->count = samplesLeftInWav;
         chan->current = current;
     } else {
         float finePos = chan->fw;
-        float romSamplesPerOutputSample = chan->freq * sampleRateReciprocal;
+        float romSamplesPerOutputSample = chan->freq * divFreq;
 
         int_fast16_t b = current[0];
         int_fast16_t m = current[1] - b;
         current += 1;
 
-        for (uint16_t i = 0; i < samplesPerFrame; i++, outBuffer += 2) {
+        for (uint16_t i = 0; i < samplesPerFrame; i++, pcmBuffer += 2) {
             // Use linear interpolation to calculate a value between the current sample in the wav
             // and the next sample. Also cancel out the 9.23 stuff
             float sample = (finePos * m) + b;
 
-            outBuffer[1] += (sample * envR) / 32768.0f;
-            outBuffer[0] += (sample * envL) / 32768.0f;
+            pcmBuffer[1] += (sample * envR) / 32768.0f;
+            pcmBuffer[0] += (sample * envL) / 32768.0f;
 
             finePos += romSamplesPerOutputSample;
             uint32_t newCoarsePos = finePos;
@@ -261,13 +262,13 @@ static inline void GenerateAudio(struct SoundInfo *mixer, struct SoundChannel *c
         }
 
         chan->fw = finePos;
-        chan->ct = samplesLeftInWav;
+        chan->count = samplesLeftInWav;
         chan->current = current - 1;
     }
 }
 
 void cgb_audio_generate(uint16_t samplesPerFrame) {
-    float *outBuffer = gb.outBuffer;
+    float *pcmBuffer = gb.pcmBuffer;
     switch (REG_NR11 & 0xC0) {
         case 0x00:
             PU1Table = PU0;
@@ -298,7 +299,7 @@ void cgb_audio_generate(uint16_t samplesPerFrame) {
             break;
     }
 
-    for (uint16_t i = 0; i < samplesPerFrame; i++, outBuffer += 2) {
+    for (uint16_t i = 0; i < samplesPerFrame; i++, pcmBuffer += 2) {
         apuFrame += 512;
         if (apuFrame >= sampleRate) {
             apuFrame -= sampleRate;
@@ -406,11 +407,11 @@ void cgb_audio_generate(uint16_t samplesPerFrame) {
                 if (REG_NR51 & 0x08) outputR += (gb.Vol[3] * sample) / 15.0f;
             }
         }
-        outBuffer[0] = outputL / 4.0f;
-        outBuffer[1] = outputR / 4.0f;
+        pcmBuffer[0] = outputL / 4.0f;
+        pcmBuffer[1] = outputR / 4.0f;
     }
 }
 
 float *cgb_get_buffer() {
-    return gb.outBuffer;
+    return gb.pcmBuffer;
 }
