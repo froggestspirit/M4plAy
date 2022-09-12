@@ -9,7 +9,7 @@
 
 #include "sound_mixer.h"
 
-#define MIXER_FREQ 42048
+#define MIXER_FREQ 13379
 int song;
 unsigned char music[0x8000000];
 FILE *musicFile = NULL;
@@ -107,7 +107,7 @@ int main(int argc, char **argv) {
     }
 
     m4aSoundInit(MIXER_FREQ);
-    m4aSongNumStart(12);
+    m4aSongNumStart(14);
 
     // Initialize library before making any other calls.
     /*PaStream *stream;
@@ -164,7 +164,7 @@ error:
             accumulator += deltaTime;
 
             while (accumulator >= dt) {
-                SDL_QueueAudio(1, RunMixerFrame(MIXER_FREQ / 60), (701 * 8));
+                SDL_QueueAudio(1, RunMixerFrame(MIXER_FREQ / 60), ((MIXER_FREQ / 60) * 8));
                 accumulator -= dt;
             }
         }

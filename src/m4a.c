@@ -7,10 +7,9 @@ extern const uint8_t gCgb3Vol[];
 extern struct SoundInfo *SOUND_INFO_PTR;
 extern unsigned char music[];
 struct SoundInfo gSoundInfo;
-MPlayFunc gMPlayJumpTable[36];
 struct SoundChannel gCgbChans[4];
 struct MusicPlayerInfo gMPlayInfo_BGM;
-struct MusicPlayerTrack gMPlayTrack_BGM[10];
+struct MusicPlayerTrack gMPlayTrack_BGM[MAX_MUSICPLAYER_TRACKS];
 uint8_t gMPlayMemAccArea[0x10];
 uint64_t songTableOffset;
 uint32_t songOffset;
@@ -52,17 +51,13 @@ void MPlayFadeOut(struct MusicPlayerInfo *mplayInfo, uint16_t speed) {
 }
 
 void m4aSoundInit(int freq) {
-    int32_t i;
     cgb_audio_init(freq);
-    SoundInit(&gSoundInfo);
-    gSoundInfo.updateRate = freq / 60;
+    SoundInit(freq);
     MPlayExtender(gCgbChans);
-    m4aSoundMode(SOUND_MODE_DA_BIT_8 | SOUND_MODE_FREQ_42048 | (12 << SOUND_MODE_MASVOL_SHIFT) | (5 << SOUND_MODE_MAXCHN_SHIFT));
+    m4aSoundMode(SOUND_MODE_DA_BIT_8 | (12 << SOUND_MODE_MASVOL_SHIFT) | (5 << SOUND_MODE_MAXCHN_SHIFT));
 
     struct MusicPlayerInfo *mplayInfo = &gMPlayInfo_BGM;
-    MPlayOpen(mplayInfo, gMPlayTrack_BGM, 10);
-    mplayInfo->checkSongPriority = 0;
-    mplayInfo->memAccArea = gMPlayMemAccArea;
+    MPlayOpen(mplayInfo, gMPlayTrack_BGM, MAX_MUSICPLAYER_TRACKS);
 }
 
 void m4aSongNumStart(uint16_t n) {
@@ -71,74 +66,8 @@ void m4aSongNumStart(uint16_t n) {
     printf("Offset: %X\n", songTableOffset);
     offsetPointer(&song->header);
     printf("Offset: %X\n", song->header->offset);
-    const struct MusicPlayerInfo *mplay = &gMPlayInfo_BGM;
 
-    MPlayStart(mplay, song->header);
-}
-
-void m4aSongNumStartOrChange(uint16_t n) {
-    songTableOffset = music + 4;
-    const struct Song *song = songTableOffset + (n * 8);
-    offsetPointer(&song->header);
-    const struct MusicPlayerInfo *mplay = &gMPlayInfo_BGM;
-
-    if (mplay->songHeader != song->header) {
-        MPlayStart(mplay, song->header);
-    } else {
-        if ((mplay->status & MUSICPLAYER_STATUS_TRACK) == 0 || (mplay->status & MUSICPLAYER_STATUS_PAUSE)) {
-            MPlayStart(mplay, song->header);
-        }
-    }
-}
-
-void m4aSongNumStartOrContinue(uint16_t n) {
-    songTableOffset = music + 4;
-    const struct Song *song = songTableOffset + (n * 8);
-    offsetPointer(&song->header);
-    const struct MusicPlayerInfo *mplay = &gMPlayInfo_BGM;
-
-    if (mplay->songHeader != song->header)
-        MPlayStart(mplay, song->header);
-    else if ((mplay->status & MUSICPLAYER_STATUS_TRACK) == 0)
-        MPlayStart(mplay, song->header);
-    else if (mplay->status & MUSICPLAYER_STATUS_PAUSE)
-        MPlayContinue(mplay);
-}
-
-void m4aSongNumStop(uint16_t n) {
-    songTableOffset = music + 4;
-    const struct Song *song = songTableOffset + (n * 8);
-    offsetPointer(&song->header);
-    const struct MusicPlayerInfo *mplay = &gMPlayInfo_BGM;
-
-    if (mplay->songHeader == song->header)
-        m4aMPlayStop(mplay);
-}
-
-void m4aSongNumContinue(uint16_t n) {
-    songTableOffset = music + 4;
-    const struct Song *song = songTableOffset + (n * 8);
-    offsetPointer(&song->header);
-    const struct MusicPlayerInfo *mplay = &gMPlayInfo_BGM;
-
-    if (mplay->songHeader == song->header)
-        MPlayContinue(mplay);
-}
-
-void m4aMPlayAllStop(void) {
-    int32_t i;
-
-    m4aMPlayStop(&gMPlayInfo_BGM);
-}
-
-void m4aMPlayContinue(struct MusicPlayerInfo *mplayInfo) {
-    MPlayContinue(mplayInfo);
-}
-
-void m4aMPlayAllContinue(void) {
-    int32_t i;
-
-    MPlayContinue(&gMPlayInfo_BGM);
+    MPlayStart(&gMPlayInfo_BGM, song->header);
 }
 
 void m4aMPlayFadeOut(struct MusicPlayerInfo *mplayInfo, uint16_t speed) {
@@ -199,10 +128,6 @@ void MPlayExtender(struct SoundChannel *cgbChans) {
     soundInfo = SOUND_INFO_PTR;
 
     soundInfo->cgbChans = cgbChans;
-    soundInfo->cgbMixerFunc = cgbMixerFunc;
-    soundInfo->cgbNoteOffFunc = cgbNoteOffFunc;
-    soundInfo->cgbCalcFreqFunc = cgbCalcFreqFunc;
-    soundInfo->maxScanlines = MAX_LINES;
 
     cgbChans[0].type = 1;
     cgbChans[0].panMask = 0x11;
@@ -218,37 +143,20 @@ void ClearChain(void *x) {
     MP2KClearChain(x);
 }
 
-void SoundInit(struct SoundInfo *soundInfo) {
+void SoundInit(uint32_t freq) {
     REG_SOUNDCNT_X = SOUND_MASTER_ENABLE | SOUND_4_ON | SOUND_3_ON | SOUND_2_ON | SOUND_1_ON;
     REG_SOUNDCNT_H = SOUND_B_FIFO_RESET | SOUND_B_TIMER_0 | SOUND_B_LEFT_OUTPUT | SOUND_A_FIFO_RESET | SOUND_A_TIMER_0 | SOUND_A_RIGHT_OUTPUT | SOUND_ALL_MIX_FULL;
     REG_SOUNDBIAS_H = (REG_SOUNDBIAS_H & 0x3F) | 0x40;
-
-    SOUND_INFO_PTR = soundInfo;
+    SOUND_INFO_PTR = &gSoundInfo;
+    struct SoundInfo *soundInfo = SOUND_INFO_PTR;
+    gSoundInfo.updateRate = freq / 60;
 
     soundInfo->numChans = 8;
     soundInfo->masterVol = 15;
-    soundInfo->mp2kEventNxxFunc = MP2K_event_nxx;
-    soundInfo->cgbMixerFunc = NULL;
-    soundInfo->cgbNoteOffFunc = (CgbOscOffFunc)NULL;
-    soundInfo->cgbCalcFreqFunc = (MidiKeyToCgbFreqFunc)NULL;
-    soundInfo->ExtVolPit = (ExtVolPitFunc)NULL;
 
-    MPlayJumpTableCopy(gMPlayJumpTable);
+    soundInfo->samplesPerFrame = gSoundInfo.updateRate + 0.5;
 
-    soundInfo->mp2kEventFuncTable = gMPlayJumpTable;
-
-    SampleFreqSet(SOUND_MODE_FREQ_42048);
-}
-
-void SampleFreqSet(uint32_t freq) {
-    struct SoundInfo *soundInfo = SOUND_INFO_PTR;
-
-    freq = (freq & 0xF0000) >> 16;
-    soundInfo->freq = freq;
-    soundInfo->samplesPerFrame = 701;
-    soundInfo->framesPerDmaCycle = MIXED_AUDIO_BUFFER_SIZE / soundInfo->samplesPerFrame;
-
-    soundInfo->sampleRate = 60.0f * soundInfo->samplesPerFrame;
+    soundInfo->sampleRate = freq;
 
     soundInfo->divFreq = 1.0f / soundInfo->sampleRate;
 }
@@ -290,12 +198,6 @@ void m4aSoundMode(uint32_t mode) {
         temp = (temp & 0x300000) >> 14;
         REG_SOUNDBIAS_H = (REG_SOUNDBIAS_H & 0x3F) | temp;
     }
-
-    temp = mode & SOUND_MODE_FREQ;
-
-    if (temp) {
-        SampleFreqSet(temp);
-    }
 }
 
 void SoundClear(void) {
@@ -318,7 +220,7 @@ void SoundClear(void) {
         i = 1;
 
         while (i <= 4) {
-            soundInfo->cgbNoteOffFunc(i);
+            cgbNoteOffFunc(i);
             ((struct SoundChannel *)chan)->status = 0;
             i++;
             chan = (void *)((int32_t)chan + sizeof(struct SoundChannel));
@@ -346,70 +248,49 @@ void MPlayOpen(struct MusicPlayerInfo *mplayInfo, struct MusicPlayerTrack *track
         trackCount--;
         tracks++;
     }
-
-    // append music player and MPlayMain to linked list
-
-    if (soundInfo->firstPlayerFunc != NULL) {
-        mplayInfo->nextPlayerFunc = soundInfo->firstPlayerFunc;
-        mplayInfo->nextPlayer = soundInfo->firstPlayer;
-        // NULL assignment semantically useless, but required for match
-        soundInfo->firstPlayerFunc = NULL;
-    }
-
-    soundInfo->firstPlayer = (uint32_t)mplayInfo;
-    soundInfo->firstPlayerFunc = (uint32_t)MP2KPlayerMain;
 }
 
 void MPlayStart(struct MusicPlayerInfo *mplayInfo, struct SongHeader *songHeader) {
     int32_t i;
-    uint8_t checkSongPriority;
     struct MusicPlayerTrack *track;
+    mplayInfo->status = 0;
+    mplayInfo->songHeader = songHeader;
+    offsetPointer(&songHeader->instrument);
+    mplayInfo->instrument = songHeader->instrument;
+    mplayInfo->priority = songHeader->priority;
+    mplayInfo->clock = 0;
+    mplayInfo->tempo = 150;
+    mplayInfo->tempoInterval = 150;
+    mplayInfo->tempoScale = 0x100;
+    mplayInfo->tempoCtr = 0;
+    mplayInfo->fadeSpeed = 0;
 
-    // printf("Offset: %X\n", songHeader->offset);
-    printf("Track Count: %X\n", songHeader->trackCount);
-    checkSongPriority = mplayInfo->checkSongPriority;
+    i = 0;
+    track = mplayInfo->tracks;
 
-    if (!checkSongPriority || ((!mplayInfo->songHeader || !(mplayInfo->tracks[0].status & MPT_FLG_START)) && ((mplayInfo->status & MUSICPLAYER_STATUS_TRACK) == 0 || (mplayInfo->status & MUSICPLAYER_STATUS_PAUSE))) || (mplayInfo->priority <= songHeader->priority)) {
-        printf("Track Count: %X\n", songHeader->trackCount);
-        mplayInfo->status = 0;
-        mplayInfo->songHeader = songHeader;
-        offsetPointer(&songHeader->instrument);
-        mplayInfo->instrument = songHeader->instrument;
-        mplayInfo->priority = songHeader->priority;
-        mplayInfo->clock = 0;
-        mplayInfo->tempo = 150;
-        mplayInfo->tempoInterval = 150;
-        mplayInfo->tempoScale = 0x100;
-        mplayInfo->tempoCtr = 0;
-        mplayInfo->fadeSpeed = 0;
-
-        i = 0;
-        track = mplayInfo->tracks;
-
-        while (i < songHeader->trackCount && i < mplayInfo->trackCount) {
-            TrackStop(mplayInfo, track);
-            track->status = MPT_FLG_EXIST | MPT_FLG_START;
-            track->chan = 0;
-            track->offset = songHeader->offset;
-            track->cmdPtr = songHeader->part[i] - track->offset;
-            printf("track offset: %X\n", track->offset);
-            offsetPointer(&track->cmdPtr);
-            printf("cmd pointer: %X\n", track->cmdPtr);
-            printf("byte: %X\n", *track->cmdPtr);
-            i++;
-            track++;
-        }
-
-        while (i < mplayInfo->trackCount) {
-            TrackStop(mplayInfo, track);
-            track->status = 0;
-            i++;
-            track++;
-        }
-
-        if (songHeader->reverb & SOUND_MODE_REVERB_SET)
-            m4aSoundMode(songHeader->reverb);
+    while (i < songHeader->trackCount && i < mplayInfo->trackCount) {
+        TrackStop(mplayInfo, track);
+        track->status = MPT_FLG_EXIST | MPT_FLG_START;
+        track->chan = 0;
+        track->offset = songHeader->offset;
+        track->cmdPtr = songHeader->part[i] - track->offset;
+        printf("track offset: %X\n", track->offset);
+        offsetPointer(&track->cmdPtr);
+        printf("cmd pointer: %X\n", track->cmdPtr);
+        printf("byte: %X\n", *track->cmdPtr);
+        i++;
+        track++;
     }
+
+    while (i < mplayInfo->trackCount) {
+        TrackStop(mplayInfo, track);
+        track->status = 0;
+        i++;
+        track++;
+    }
+
+    if (songHeader->reverb & SOUND_MODE_REVERB_SET)
+        m4aSoundMode(songHeader->reverb);
 }
 
 void m4aMPlayStop(struct MusicPlayerInfo *mplayInfo) {
@@ -1041,7 +922,7 @@ void ply_memacc(struct MusicPlayerInfo *mplayInfo, struct MusicPlayerTrack *trac
     op = *track->cmdPtr;
     track->cmdPtr++;
 
-    addr = mplayInfo->memAccArea + *track->cmdPtr;
+    addr = gMPlayMemAccArea + *track->cmdPtr;
     track->cmdPtr++;
 
     data = *track->cmdPtr;
@@ -1058,13 +939,13 @@ void ply_memacc(struct MusicPlayerInfo *mplayInfo, struct MusicPlayerTrack *trac
             *addr -= data;
             return;
         case 3:
-            *addr = mplayInfo->memAccArea[data];
+            *addr = gMPlayMemAccArea[data];
             return;
         case 4:
-            *addr += mplayInfo->memAccArea[data];
+            *addr += gMPlayMemAccArea[data];
             return;
         case 5:
-            *addr -= mplayInfo->memAccArea[data];
+            *addr -= gMPlayMemAccArea[data];
             return;
         case 6:
             MEMACC_COND_JUMP(*addr == data)
@@ -1085,22 +966,22 @@ void ply_memacc(struct MusicPlayerInfo *mplayInfo, struct MusicPlayerTrack *trac
             MEMACC_COND_JUMP(*addr < data)
             return;
         case 12:
-            MEMACC_COND_JUMP(*addr == mplayInfo->memAccArea[data])
+            MEMACC_COND_JUMP(*addr == gMPlayMemAccArea[data])
             return;
         case 13:
-            MEMACC_COND_JUMP(*addr != mplayInfo->memAccArea[data])
+            MEMACC_COND_JUMP(*addr != gMPlayMemAccArea[data])
             return;
         case 14:
-            MEMACC_COND_JUMP(*addr > mplayInfo->memAccArea[data])
+            MEMACC_COND_JUMP(*addr > gMPlayMemAccArea[data])
             return;
         case 15:
-            MEMACC_COND_JUMP(*addr >= mplayInfo->memAccArea[data])
+            MEMACC_COND_JUMP(*addr >= gMPlayMemAccArea[data])
             return;
         case 16:
-            MEMACC_COND_JUMP(*addr <= mplayInfo->memAccArea[data])
+            MEMACC_COND_JUMP(*addr <= gMPlayMemAccArea[data])
             return;
         case 17:
-            MEMACC_COND_JUMP(*addr < mplayInfo->memAccArea[data])
+            MEMACC_COND_JUMP(*addr < gMPlayMemAccArea[data])
             return;
         default:
             return;
@@ -1143,6 +1024,7 @@ void ply_xwave(struct MusicPlayerInfo *mplayInfo, struct MusicPlayerTrack *track
     READ_XCMD_BYTE(wav, 3)
 
     track->instrument.wav = (struct WaveData *)wav;
+
     track->cmdPtr += 4;
 }
 
@@ -1224,7 +1106,7 @@ void ply_xcmd_0D(struct MusicPlayerInfo *mplayInfo, struct MusicPlayerTrack *tra
 
 #define FLOOR_DIV_POW2(a, b) ((a) > 0 ? (a) / (b) : (((a) + 1 - (b)) / (b)))
 
-extern void *const gMPlayJumpTableTemplate[];
+extern void *const gMPlayJumpTable[];
 extern const uint8_t gScaleTable[];
 extern const uint32_t gFreqTable[];
 extern const uint8_t gClockTable[];
@@ -1258,50 +1140,10 @@ void MP2KClearChain(struct SoundChannel *chan) {
     chan->track = NULL;
 }
 
-static uint8_t SafeDereferenceU8(uint8_t *addr) {
-    uint8_t ret = *addr;
-    return ret;
-}
-
-static uint32_t SafeDereferenceU32(uint32_t *addr) {
-    uint32_t ret = *addr;
-    return ret;
-}
-
-static uint8_t *SafeDereferenceU8Ptr(uint8_t **addr) {
-    uint8_t *ret = *addr;
-    return ret;
-}
-
-static uint32_t *SafeDereferenceU32Ptr(uint32_t **addr) {
-    uint32_t *ret = *addr;
-    return ret;
-}
-
-static struct WaveData *SafeDereferenceWavDataPtr(struct WaveData **addr) {
-    struct WaveData *ret = *addr;
-    return ret;
-}
-
-static struct ToneData *SafeDereferenceMP2KInstrumentPtr(struct ToneData **addr) {
-    struct ToneData *ret = *addr;
-    return ret;
-}
-
-static void *SafeDereferenceVoidPtr(void **addr) {
-    void *ret = *addr;
-    return ret;
-}
-
 uint8_t ConsumeTrackByte(struct MusicPlayerTrack *track) {
-    uint8_t *ptr = track->cmdPtr++;
-    return SafeDereferenceU8(ptr);
-}
-
-void MPlayJumpTableCopy(void **mplayJumpTable) {
-    for (uint_fast8_t i = 0; i < 36; i++) {
-        mplayJumpTable[i] = SafeDereferenceVoidPtr(&gMPlayJumpTableTemplate[i]);
-    }
+    uint8_t byte = *track->cmdPtr;
+    track->cmdPtr++;
+    return byte;
 }
 
 // Ends the current track. (Fine as in the Italian musical word, not English)
@@ -1318,18 +1160,15 @@ void MP2K_event_fine(struct MusicPlayerInfo *unused, struct MusicPlayerTrack *tr
 
 // Sets the track's cmdPtr to the specified address.
 void MP2K_event_goto(struct MusicPlayerInfo *unused, struct MusicPlayerTrack *track) {
-    uint8_t *addr;
-    memcpy(&addr, track->cmdPtr, sizeof(uint8_t *));
-    track->cmdPtr = addr - track->offset;
+    track->cmdPtr = *(uint32_t *)track->cmdPtr - track->offset;
     offsetPointer(&track->cmdPtr);
-    printf("track ptr jump: %X\n", track->cmdPtr);
 }
 
 // Sets the track's cmdPtr to the specified address after backing up its current position.
 void MP2K_event_patt(struct MusicPlayerInfo *unused, struct MusicPlayerTrack *track) {
     uint8_t level = track->patternLevel;
     if (level < 3) {
-        track->patternStack[level] = track->cmdPtr + sizeof(uint8_t *);
+        track->patternStack[level] = track->cmdPtr + 4;  // sizeof(uint32_t);
         track->patternLevel++;
         MP2K_event_goto(unused, track);
     } else {
@@ -1360,7 +1199,7 @@ void MP2K_event_rept(struct MusicPlayerInfo *unused, struct MusicPlayerTrack *tr
             MP2K_event_goto(unused, track);
         } else {
             track->repeatCtr = 0;
-            track->cmdPtr += sizeof(uint8_t) + sizeof(uint8_t *);
+            track->cmdPtr += 5;  // sizeof(uint8_t) + sizeof(uint32_t);
         }
     }
 }
@@ -1387,7 +1226,6 @@ void MP2K_event_keysh(struct MusicPlayerInfo *unused, struct MusicPlayerTrack *t
 void MP2K_event_voice(struct MusicPlayerInfo *player, struct MusicPlayerTrack *track) {
     uint8_t voice = *(track->cmdPtr++);
     struct ToneData *instrument = &player->instrument[voice];
-    printf("voice: %X\n", &player->instrument[voice]);
     track->instrument = *instrument;
 }
 
@@ -1437,9 +1275,6 @@ void MP2K_event_port(struct MusicPlayerInfo *unused, struct MusicPlayerTrack *tr
 void MP2KPlayerMain(void *voidPtrPlayer) {
     struct MusicPlayerInfo *player = (struct MusicPlayerInfo *)voidPtrPlayer;
     struct SoundInfo *mixer = SOUND_INFO_PTR;
-    if (player->nextPlayerFunc != NULL) {
-        player->nextPlayerFunc(player->nextPlayer);
-    }
 
     if (player->status & MUSICPLAYER_STATUS_PAUSE) return;
     FadeOutBody(voidPtrPlayer);
@@ -1486,13 +1321,12 @@ void MP2KPlayerMain(void *voidPtrPlayer) {
                     }
                 }
 
-                printf("event: %X\n", event);
                 if (event >= 0xCF) {
-                    mixer->mp2kEventNxxFunc(event - 0xCF, player, currentTrack);
+                    MP2K_event_nxx(event - 0xCF, player, currentTrack);
                 } else if (event >= 0xB1) {
                     void (*eventFunc)(struct MusicPlayerInfo *, struct MusicPlayerTrack *);
                     player->cmd = event - 0xB1;
-                    eventFunc = mixer->mp2kEventFuncTable[player->cmd];
+                    eventFunc = gMPlayJumpTable[player->cmd];
                     eventFunc(player, currentTrack);
 
                     if (currentTrack->status == 0) {
@@ -1573,7 +1407,7 @@ void MP2KPlayerMain(void *voidPtrPlayer) {
                     key = 0;
                 }
                 if (cgbType != 0) {
-                    chan->freq = mixer->cgbCalcFreqFunc(cgbType, key, track->pitchM);
+                    chan->freq = cgbCalcFreqFunc(cgbType, key, track->pitchM);
                     chan->cgbStatus |= 0x2;
                 } else {
                     chan->freq = MidiKeyToFreq(chan->wav, key, track->pitchM);
@@ -1592,7 +1426,7 @@ void TrackStop(struct MusicPlayerInfo *player, struct MusicPlayerTrack *track) {
                 uint8_t cgbType = chan->type & 0x7;
                 if (cgbType != 0) {
                     struct SoundInfo *mixer = SOUND_INFO_PTR;
-                    mixer->cgbNoteOffFunc(cgbType);
+                    cgbNoteOffFunc(cgbType);
                 }
                 chan->status = 0;
             }
@@ -1644,7 +1478,7 @@ void MP2K_event_nxx(uint8_t clock, struct MusicPlayerInfo *player, struct MusicP
 
     if (type & (TONEDATA_TYPE_RHY | TONEDATA_TYPE_SPL)) {
         uint8_t instrumentIndex;
-        if (instrument->type & TONEDATA_TYPE_SPL) {
+        if (type & TONEDATA_TYPE_SPL) {
             uint8_t *keySplitTableOffset = instrument->keySplitTable;
             offsetPointer(&keySplitTableOffset);
             instrumentIndex = keySplitTableOffset[track->key];
@@ -1652,10 +1486,8 @@ void MP2K_event_nxx(uint8_t clock, struct MusicPlayerInfo *player, struct MusicP
             instrumentIndex = track->key;
         }
 
-        instrument = instrument->group + instrumentIndex;
-        printf("instrument %X\n", instrument);
+        instrument = instrument->group + (instrumentIndex * 12);
         offsetPointer(&instrument);
-        printf("instrument %X\n", instrument->type);
         if (instrument->type & (TONEDATA_TYPE_RHY | TONEDATA_TYPE_SPL)) {
             return;
         }
@@ -1772,7 +1604,6 @@ void MP2K_event_nxx(uint8_t clock, struct MusicPlayerInfo *player, struct MusicP
     }
 
     if (cgbType != 0) {
-        // struct SoundChannel *cgbChan = (struct SoundChannel *)chan;
         chan->length = instrument->length;
         if (instrument->panSweep & 0x80 || (instrument->panSweep & 0x70) == 0) {
             chan->sweep = 8;
@@ -1780,7 +1611,7 @@ void MP2K_event_nxx(uint8_t clock, struct MusicPlayerInfo *player, struct MusicP
             chan->sweep = instrument->panSweep;
         }
 
-        chan->freq = mixer->cgbCalcFreqFunc(cgbType, transposedKey, track->pitchM);
+        chan->freq = cgbCalcFreqFunc(cgbType, transposedKey, track->pitchM);
     } else {
         chan->freq = MidiKeyToFreq(chan->wav, transposedKey, track->pitchM);
     }

@@ -4,12 +4,8 @@
 #include <stdint.h>
 #include "io_reg.h"
 
-// ASCII encoding of 'Smsh' in reverse
-// This is presumably short for SMASH, the developer of MKS4AGB.
-#define ID_NUMBER 0x68736D53
 #define MAX_SAMPLE_CHANNELS 12
 #define MIXED_AUDIO_BUFFER_SIZE 4907
-#define C_V 0x40  // center value for PAN, BEND, and TUNE
 
 #define SOUND_MODE_REVERB_VAL 0x0000007F
 #define SOUND_MODE_REVERB_SET 0x00000080
@@ -62,8 +58,8 @@ struct ToneData {
     uint8_t length;    // sound length (compatible sound)
     uint8_t panSweep;  // pan or sweep (compatible sound ch. 1)
     union {
-        struct WaveData *wav;
-        struct ToneData *group;
+        uint32_t wav;
+        uint32_t group;
         uint32_t squareNoiseConfig;
     };
     union {
@@ -73,7 +69,7 @@ struct ToneData {
             uint8_t sustain;
             uint8_t release;
         };
-        uint8_t *keySplitTable;
+        uint32_t keySplitTable;
     };
 };
 
@@ -83,8 +79,8 @@ struct SongHeader {
     uint8_t blockCount;
     uint8_t priority;
     uint8_t reverb;
-    struct ToneData *instrument;
-    uint8_t *part[1];
+    uint32_t instrument;
+    uint32_t part[1];
 };
 
 #define SOUND_CHANNEL_SF_START 0x80
@@ -160,19 +156,7 @@ struct SoundChannel {
 
 struct MusicPlayerInfo;
 
-typedef void (*MPlayFunc)();
-typedef void (*PlyNoteFunc)(uint32_t, struct MusicPlayerInfo *, struct MusicPlayerTrack *);
-typedef void (*CgbSoundFunc)(void);
-typedef void (*CgbOscOffFunc)(uint8_t);
-typedef uint32_t (*MidiKeyToCgbFreqFunc)(uint8_t, uint8_t, uint8_t);
-typedef void (*ExtVolPitFunc)(void);
-typedef void (*MPlayMainFunc)(struct MusicPlayerInfo *);
-
 struct SoundInfo {
-    // This field is normally equal to ID_NUMBER but it is set to other
-    // values during sensitive operations for locking purposes.
-    // This field should be volatile but isn't. This could potentially cause
-    // race conditions.
     float updateRate;
     // Direct Sound
     uint8_t reverb;
@@ -182,19 +166,10 @@ struct SoundInfo {
     uint8_t mode;
     uint8_t c15;                // periodically counts from 14 down to 0 (15 states)
     uint8_t framesPerDmaCycle;  // number of V-blanks per PCM DMA
-    uint8_t maxScanlines;
     int32_t samplesPerFrame;
     int32_t sampleRate;
     float divFreq;
     struct SoundChannel *cgbChans;
-    void (*firstPlayerFunc)(void *player);
-    void *firstPlayer;
-    void (*cgbMixerFunc)(void);
-    void (*cgbNoteOffFunc)(uint8_t chan);
-    uint32_t (*cgbCalcFreqFunc)(uint8_t chan, uint8_t key, uint8_t pitch);
-    void (**mp2kEventFuncTable)();
-    void (*mp2kEventNxxFunc)(uint8_t clock, struct MusicPlayerInfo *player, struct MusicPlayerTrack *track);
-    void (*ExtVolPit)(void);
     struct SoundChannel chans[MAX_SAMPLE_CHANNELS];
     float pcmBuffer[MIXED_AUDIO_BUFFER_SIZE * 2];
 };
@@ -264,9 +239,7 @@ struct MusicPlayerInfo {
     uint8_t trackCount;
     uint8_t priority;
     uint8_t cmd;
-    uint8_t checkSongPriority;
     uint32_t clock;
-    uint8_t *memAccArea;
     uint16_t tempo;
     uint16_t tempoScale;
     uint16_t tempoInterval;
@@ -276,8 +249,6 @@ struct MusicPlayerInfo {
     uint16_t fadeVol;
     struct MusicPlayerTrack *tracks;
     struct ToneData *instrument;
-    void (*nextPlayerFunc)(void *);
-    void *nextPlayer;
 };
 
 struct Song {
@@ -306,13 +277,9 @@ struct AudioCGB {
     __attribute__((aligned(4))) float pcmBuffer[MIXED_AUDIO_BUFFER_SIZE * 2];
 };
 
-extern const struct Song gSongTable[];
-
 extern uint8_t gMPlayMemAccArea[];
 
 extern char SoundMainRAM[];
-
-extern MPlayFunc gMPlayJumpTable[];
 
 typedef void (*XcmdFunc)(struct MusicPlayerInfo *, struct MusicPlayerTrack *);
 extern const XcmdFunc gXcmdTable[];
@@ -337,9 +304,6 @@ extern int16_t WAV[];
 extern const float freqTable[];
 extern const float freqTableNSE[];
 
-#define NUM_MUSIC_PLAYERS 1
-#define MAX_LINES 0
-
 uint32_t umul3232H32(uint32_t multiplier, uint32_t multiplicand);
 void SoundMain(void);
 void SoundMainBTM(void *ptr);
@@ -355,7 +319,7 @@ void TrkVolPitSet(struct MusicPlayerInfo *mplayInfo, struct MusicPlayerTrack *tr
 void MPlayFadeOut(struct MusicPlayerInfo *mplayInfo, uint16_t speed);
 void ClearChain(void *x);
 void Clear64byte(void *addr);
-void SoundInit(struct SoundInfo *soundInfo);
+void SoundInit(uint32_t freq);
 void MPlayExtender(struct SoundChannel *cgbChans);
 void m4aSoundMode(uint32_t mode);
 void MPlayOpen(struct MusicPlayerInfo *mplayInfo, struct MusicPlayerTrack *track, uint8_t a3);

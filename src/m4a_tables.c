@@ -3,7 +3,7 @@
 // Some of these functions have different signatures, so we need to make this
 // an array of void pointers or a struct. It's simpler to just make it an array
 // for now.
-void *const gMPlayJumpTableTemplate[] =
+void *const gMPlayJumpTable[] =
     {
         MP2K_event_fine,
         MP2K_event_goto,
@@ -35,7 +35,7 @@ void *const gMPlayJumpTableTemplate[] =
         MP2K_event_port,
         MP2K_event_fine,
         MP2K_event_endtie,
-        SampleFreqSet,
+        MP2K_event_fine,  // Set Sample Freq
         TrackStop,
         FadeOutBody,
         TrkVolPitSet,

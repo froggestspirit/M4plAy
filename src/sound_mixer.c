@@ -14,6 +14,7 @@ extern uint8_t apuCycle;
 extern uint32_t sampleRate;
 extern uint16_t lfsrMax[2];
 extern float ch4Samples;
+extern struct MusicPlayerInfo gMPlayInfo_BGM;
 
 float audioBuffer[MIXED_AUDIO_BUFFER_SIZE];
 
@@ -24,7 +25,7 @@ float *RunMixerFrame(uint16_t samplesPerFrame) {
 
     playerCounter += samplesPerFrame;
     while (playerCounter >= mixer->updateRate) {
-        MP2KPlayerMain(mixer->firstPlayer);
+        MP2KPlayerMain(&gMPlayInfo_BGM);
         playerCounter -= mixer->updateRate;
     }
 
@@ -219,7 +220,6 @@ static inline void GenerateAudio(struct SoundInfo *mixer, struct SoundChannel *c
     } else {
         float finePos = chan->fw;
         float romSamplesPerOutputSample = chan->freq * divFreq;
-
         int_fast16_t b = current[0];
         int_fast16_t m = current[1] - b;
         current += 1;
