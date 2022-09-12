@@ -17,8 +17,8 @@ uint32_t mplayOffset;
 void MP2K_event_nxx(uint8_t clock, struct MusicPlayerInfo *player, struct MusicPlayerTrack *track);
 void MP2KPlayerMain(void *voidPtrPlayer);
 
-void offsetPointer(uint32_t *ptr) {
-    *ptr += (uint32_t)music;
+void offsetPointer(uintptr_t *ptr) {
+    *ptr += (uintptr_t)music;
 }
 
 uint32_t MidiKeyToFreq(struct WaveData *wav, uint8_t key, uint8_t fineAdjust) {
@@ -255,8 +255,11 @@ void MPlayStart(struct MusicPlayerInfo *mplayInfo, struct SongHeader *songHeader
     struct MusicPlayerTrack *track;
     mplayInfo->status = 0;
     mplayInfo->songHeader = songHeader;
-    offsetPointer(&songHeader->instrument);
+    printf("songHeader: %X\n", songHeader);
+    printf("songHeader->instrument: %X\n", songHeader->instrument);
     mplayInfo->instrument = songHeader->instrument;
+    offsetPointer(&mplayInfo->instrument);
+    printf("mplayInfo->instrument: %X\n", mplayInfo->instrument);
     mplayInfo->priority = songHeader->priority;
     mplayInfo->clock = 0;
     mplayInfo->tempo = 150;
@@ -1225,8 +1228,10 @@ void MP2K_event_keysh(struct MusicPlayerInfo *unused, struct MusicPlayerTrack *t
 
 void MP2K_event_voice(struct MusicPlayerInfo *player, struct MusicPlayerTrack *track) {
     uint8_t voice = *(track->cmdPtr++);
+    printf("voice: %X\n", &player->instrument[voice]);
     struct ToneData *instrument = &player->instrument[voice];
     track->instrument = *instrument;
+    printf("here\n");
 }
 
 void MP2K_event_vol(struct MusicPlayerInfo *unused, struct MusicPlayerTrack *track) {
@@ -1312,6 +1317,7 @@ void MP2KPlayerMain(void *voidPtrPlayer) {
 
             while (currentTrack->wait == 0) {
                 uint8_t event = *currentTrack->cmdPtr;
+                printf("event: %X\n", event);
                 if (event < 0x80) {
                     event = currentTrack->runningStatus;
                 } else {
