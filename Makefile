@@ -2,7 +2,7 @@ C ?= gcc
 
 CFLAGS := -O2 -Wall
 
-LDFLAGS := -lSDL2
+LDFLAGS := -lm -lportaudio
 
 SRCS := src/main.c src/m4a.c src/m4a_tables.c src/sound_mixer.c
 

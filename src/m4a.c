@@ -63,9 +63,7 @@ void m4aSoundInit(int freq) {
 void m4aSongNumStart(uint16_t n) {
     songTableOffset = music + 4;
     const struct Song *song = songTableOffset + (n * 8);
-    printf("Offset: %X\n", songTableOffset);
     offsetPointer(&song->header);
-    printf("Offset: %X\n", song->header->offset);
 
     MPlayStart(&gMPlayInfo_BGM, song->header);
 }
@@ -255,11 +253,8 @@ void MPlayStart(struct MusicPlayerInfo *mplayInfo, struct SongHeader *songHeader
     struct MusicPlayerTrack *track;
     mplayInfo->status = 0;
     mplayInfo->songHeader = songHeader;
-    printf("songHeader: %X\n", songHeader);
-    printf("songHeader->instrument: %X\n", songHeader->instrument);
     mplayInfo->instrument = songHeader->instrument;
     offsetPointer(&mplayInfo->instrument);
-    printf("mplayInfo->instrument: %X\n", mplayInfo->instrument);
     mplayInfo->priority = songHeader->priority;
     mplayInfo->clock = 0;
     mplayInfo->tempo = 150;
@@ -277,10 +272,7 @@ void MPlayStart(struct MusicPlayerInfo *mplayInfo, struct SongHeader *songHeader
         track->chan = 0;
         track->offset = songHeader->offset;
         track->cmdPtr = songHeader->part[i] - track->offset;
-        printf("track offset: %X\n", track->offset);
         offsetPointer(&track->cmdPtr);
-        printf("cmd pointer: %X\n", track->cmdPtr);
-        printf("byte: %X\n", *track->cmdPtr);
         i++;
         track++;
     }
@@ -1228,10 +1220,8 @@ void MP2K_event_keysh(struct MusicPlayerInfo *unused, struct MusicPlayerTrack *t
 
 void MP2K_event_voice(struct MusicPlayerInfo *player, struct MusicPlayerTrack *track) {
     uint8_t voice = *(track->cmdPtr++);
-    printf("voice: %X\n", &player->instrument[voice]);
     struct ToneData *instrument = &player->instrument[voice];
     track->instrument = *instrument;
-    printf("here\n");
 }
 
 void MP2K_event_vol(struct MusicPlayerInfo *unused, struct MusicPlayerTrack *track) {
@@ -1317,7 +1307,6 @@ void MP2KPlayerMain(void *voidPtrPlayer) {
 
             while (currentTrack->wait == 0) {
                 uint8_t event = *currentTrack->cmdPtr;
-                printf("event: %X\n", event);
                 if (event < 0x80) {
                     event = currentTrack->runningStatus;
                 } else {
