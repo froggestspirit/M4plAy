@@ -6,16 +6,13 @@
 #include <stdlib.h>
 #include <math.h>
 
-#include "sound_mixer.h"
+#include "m4play.h"
 
 #define MIXER_FREQ 48000
 int song;
 unsigned char music[0x8000000];
 FILE *musicFile = NULL;
 char *filename;
-
-unsigned char REG_BASE[0x400] __attribute__((aligned(4)));
-struct SoundInfo *SOUND_INFO_PTR;
 
 bool isRunning = true;
 

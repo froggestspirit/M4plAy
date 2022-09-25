@@ -6,9 +6,7 @@
 void m4aSoundVSync(void);
 void m4aSoundVSyncOn(void);
 
-void m4aSoundInit(void);
 void m4aSoundMain(void);
-void m4aSongNumStart(uint16_t n);
 void m4aMPlayFadeOut(struct MusicPlayerInfo *mplayInfo, uint16_t speed);
 void m4aMPlayFadeOutTemporarily(struct MusicPlayerInfo *mplayInfo, uint16_t speed);
 void m4aMPlayFadeIn(struct MusicPlayerInfo *mplayInfo, uint16_t speed);

@@ -1,6 +1,8 @@
 M4A player based on the pokeemerald pc port
 
-requires libportaudio
+This will create a library that can be linked
+
+example requires libportaudio
 
 files converted with AdvanceRipper
 

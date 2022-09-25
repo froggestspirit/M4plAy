@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include "io_reg.h"
 
-#define MAX_SAMPLE_CHANNELS 12
+#define MAX_SAMPLE_CHANNELS 16
 #define MIXED_AUDIO_BUFFER_SIZE 4907
 
 #define SOUND_MODE_REVERB_VAL 0x0000007F

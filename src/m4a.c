@@ -3,8 +3,9 @@
 
 #include "m4a_internal.h"
 
+unsigned char REG_BASE[0x400] __attribute__((aligned(4)));
+struct SoundInfo *SOUND_INFO_PTR;
 extern const uint8_t gCgb3Vol[];
-extern struct SoundInfo *SOUND_INFO_PTR;
 extern unsigned char music[];
 struct SoundInfo gSoundInfo;
 struct SoundChannel gCgbChans[4];
@@ -54,7 +55,7 @@ void m4aSoundInit(int freq) {
     cgb_audio_init(freq);
     SoundInit(freq);
     MPlayExtender(gCgbChans);
-    m4aSoundMode(SOUND_MODE_DA_BIT_8 | (12 << SOUND_MODE_MASVOL_SHIFT) | (5 << SOUND_MODE_MAXCHN_SHIFT));
+    m4aSoundMode(SOUND_MODE_DA_BIT_8 | (12 << SOUND_MODE_MASVOL_SHIFT) | (MAX_SAMPLE_CHANNELS << SOUND_MODE_MAXCHN_SHIFT));
 
     struct MusicPlayerInfo *mplayInfo = &gMPlayInfo_BGM;
     MPlayOpen(mplayInfo, gMPlayTrack_BGM, MAX_MUSICPLAYER_TRACKS);
@@ -149,7 +150,7 @@ void SoundInit(uint32_t freq) {
     struct SoundInfo *soundInfo = SOUND_INFO_PTR;
     gSoundInfo.updateRate = freq / 60;
 
-    soundInfo->numChans = 8;
+    soundInfo->numChans = MAX_SAMPLE_CHANNELS;
     soundInfo->masterVol = 15;
 
     soundInfo->samplesPerFrame = gSoundInfo.updateRate + 0.5;
