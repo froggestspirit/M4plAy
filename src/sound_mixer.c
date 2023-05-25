@@ -45,6 +45,7 @@ float *RunMixerFrame(uint16_t samplesPerFrame) {
 }
 
 void SampleMixer(struct SoundInfo *mixer, uint16_t samplesPerFrame, float *pcmBuffer, uint16_t maxBufSize) {
+    static float envelopeCounter = 0;
     uint32_t reverb = mixer->reverb;
     if (reverb) {
         // The vanilla reverb effect outputs a mono sound from four sources:
@@ -52,7 +53,7 @@ void SampleMixer(struct SoundInfo *mixer, uint16_t samplesPerFrame, float *pcmBu
         //  - L/R channels as they were (mixer->framesPerDmaCycle - 1) frames ago
         float *tmp1 = pcmBuffer;
         float *tmp2;
-        tmp2 = pcmBuffer + samplesPerFrame * 2;
+        tmp2 = pcmBuffer + mixer->samplesPerFrame * 2;
         uint_fast16_t i = 0;
         do {
             float s = tmp1[0] + tmp1[1] + tmp2[0] + tmp2[1];
@@ -60,9 +61,9 @@ void SampleMixer(struct SoundInfo *mixer, uint16_t samplesPerFrame, float *pcmBu
             tmp1[0] = tmp1[1] = s;
             tmp1 += 2;
             tmp2 += 2;
-        } while (++i < samplesPerFrame);
+        } while (++i < mixer->samplesPerFrame);
     } else {
-        for (int i = 0; i < samplesPerFrame; i++) {
+        for (int i = 0; i < mixer->samplesPerFrame; i++) {
             float *dst = &pcmBuffer[i * 2];
             dst[1] = dst[0] = 0.0f;
         }
@@ -72,12 +73,15 @@ void SampleMixer(struct SoundInfo *mixer, uint16_t samplesPerFrame, float *pcmBu
     int_fast8_t numChans = mixer->numChans;
     struct SoundChannel *chan = mixer->chans;
 
+    envelopeCounter += samplesPerFrame;
     for (int i = 0; i < numChans; i++, chan++) {
         struct WaveData *wav = chan->wav;
-
-        if (TickEnvelope(chan, wav)) {
+        if (envelopeCounter >= mixer->updateRate) TickEnvelope(chan, wav);
+        if (chan->status & 0x0F)
             GenerateAudio(mixer, chan, wav, pcmBuffer, samplesPerFrame, divFreq);
-        }
+    }
+    while (envelopeCounter >= mixer->updateRate){
+        envelopeCounter -= mixer->updateRate;
     }
 }
 
