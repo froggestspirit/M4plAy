@@ -3,7 +3,7 @@ extern "C"{
 #endif 
 
 void m4aSoundInit(uint32_t freq);
-void m4aSongNumStart(uint16_t n);
+void m4aSongNumStart(uint16_t n, uint32_t songTableOffset);
 float *RunMixerFrame(uint16_t samplesPerFrame);
 
 #ifdef __cplusplus

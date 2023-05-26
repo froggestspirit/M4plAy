@@ -74,7 +74,6 @@ struct ToneData {
 };
 
 struct SongHeader {
-    uint32_t offset;
     uint8_t trackCount;
     uint8_t blockCount;
     uint8_t priority;

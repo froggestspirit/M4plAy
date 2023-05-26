@@ -4,8 +4,4 @@ This will create a library that can be linked
 
 example requires libportaudio
 
-files converted with AdvanceRipper
-
-usage: M4plAy [file] [song number]
-
-All examples are not owned by me
+usage: M4plAy [rom] [song table offset] [song number]

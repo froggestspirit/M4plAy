@@ -12,13 +12,14 @@ struct SoundChannel gCgbChans[4];
 struct MusicPlayerInfo gMPlayInfo_BGM;
 struct MusicPlayerTrack gMPlayTrack_BGM[MAX_MUSICPLAYER_TRACKS];
 uint8_t gMPlayMemAccArea[0x10];
-uint64_t songTableOffset;
+uint64_t songTablePointer;
 uint32_t songOffset;
 uint32_t mplayOffset;
 void MP2K_event_nxx(uint8_t clock, struct MusicPlayerInfo *player, struct MusicPlayerTrack *track);
 void MP2KPlayerMain(void *voidPtrPlayer);
 
 void offsetPointer(uintptr_t *ptr) {
+    *ptr -= 0x8000000;
     *ptr += (uintptr_t)music;
 }
 
@@ -61,10 +62,15 @@ void m4aSoundInit(int freq) {
     MPlayOpen(mplayInfo, gMPlayTrack_BGM, MAX_MUSICPLAYER_TRACKS);
 }
 
-void m4aSongNumStart(uint16_t n) {
-    songTableOffset = music + 4;
-    const struct Song *song = songTableOffset + (n * 8);
+void m4aSongNumStart(uint16_t n, uint32_t songTableOffset) {
+    printf("music pointer: %X\n", music);
+    songTablePointer = music + songTableOffset;
+    printf("songTableOffset: %X\n", songTableOffset);
+    printf("songTablePointer: %X\n", songTablePointer);
+    const struct Song *song = songTablePointer + (n * 8);
+    printf("song offset: %X\n", song->header);
     offsetPointer(&song->header);
+    printf("song pointer: %X\n", song->header);
 
     MPlayStart(&gMPlayInfo_BGM, song->header);
 }
@@ -271,7 +277,7 @@ void MPlayStart(struct MusicPlayerInfo *mplayInfo, struct SongHeader *songHeader
         TrackStop(mplayInfo, track);
         track->status = MPT_FLG_EXIST | MPT_FLG_START;
         track->chan = 0;
-        track->offset = songHeader->offset;
+        track->offset = 0;
         track->cmdPtr = songHeader->part[i] - track->offset;
         offsetPointer(&track->cmdPtr);
         i++;

@@ -10,6 +10,7 @@
 
 #define MIXER_FREQ 48000
 int song;
+uint32_t songTableOffset;
 unsigned char music[0x8000000];
 FILE *musicFile = NULL;
 char *filename;
@@ -54,13 +55,10 @@ static float *out;
 int main(int argc, char **argv) {
     song = 0;
     bool inf = false;
-    if (argc > 1) {
-        filename = argv[1];
-    } else {
-        filename = "examples/SA2.bin";
-    }
-    if (argc > 2) song = atoi(argv[2]);
-    if (argc > 3) inf = true;
+    if (argc > 1) filename = argv[1];
+    if (argc > 2) songTableOffset = atoi(argv[2]);
+    if (argc > 3) song = atoi(argv[3]);
+    if (argc > 4) inf = true;
     musicFile = fopen(filename, "rb");
     if (0 != fseek(musicFile, 0, SEEK_END)) return false;
     int sizef = ftell(musicFile);
@@ -69,7 +67,7 @@ int main(int argc, char **argv) {
     fclose(musicFile);
 
     m4aSoundInit(MIXER_FREQ);
-    m4aSongNumStart(song);
+    m4aSongNumStart(song, songTableOffset);
 
     // Initialize library before making any other calls.
     PaStream *stream;
