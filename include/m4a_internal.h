@@ -224,38 +224,6 @@ struct SongHeader
     uint8_t *part[1];
 };
 
-struct PokemonCrySong
-{
-    uint8_t trackCount;
-    uint8_t blockCount;
-    uint8_t priority;
-    uint8_t reverb;
-    struct ToneData *tone;
-    uint8_t *part[2];
-    uint8_t gap;
-    uint8_t part0; // 0x11
-    uint8_t tuneValue; // 0x12
-    uint8_t gotoCmd; // 0x13
-    uint32_t gotoTarget; // 0x14
-    uint8_t part1; // 0x18
-    uint8_t tuneValue2; // 0x19
-    uint8_t cont[2]; // 0x1A
-    uint8_t volCmd; // 0x1C
-    uint8_t volumeValue; // 0x1D
-    uint8_t unkCmd0D[2]; // 0x1E
-    uint32_t unkCmd0DParam; // 0x20
-    uint8_t xreleCmd[2]; // 0x24
-    uint8_t releaseValue; // 0x26
-    uint8_t panCmd;
-    uint8_t panValue; // 0x28
-    uint8_t tieCmd; // 0x29
-    uint8_t tieKeyValue; // 0x2A
-    uint8_t tieVelocityValue; // 0x2B
-    uint8_t unkCmd0C[2]; // 0x2C
-    uint16_t unkCmd0CParam; // 0x2E
-    uint8_t end[2]; // 0x30
-};
-
 #define MPT_FLG_VOLSET 0x01
 #define MPT_FLG_VOLCHG 0x03
 #define MPT_FLG_PITSET 0x04
@@ -363,17 +331,6 @@ extern const struct Song gSongTable[];
 
 extern uint8_t gMPlayMemAccArea[];
 
-//uint8_t gPokemonCrySong[52];
-//uint8_t gPokemonCrySongs[52 * MAX_POKEMON_CRIES];
-
-#define MAX_POKEMON_CRIES 2
-
-extern struct PokemonCrySong gPokemonCrySong;
-extern struct PokemonCrySong gPokemonCrySongs[];
-
-extern struct MusicPlayerInfo gPokemonCryMusicPlayers[];
-extern struct MusicPlayerTrack gPokemonCryTracks[];
-
 extern char SoundMainRAM[];
 
 extern MPlayFunc gMPlayJumpTable[];
@@ -390,8 +347,6 @@ extern const uint16_t gPcmSamplesPerVBlankTable[];
 extern const uint8_t gCgbScaleTable[];
 extern const int16_t gCgbFreqTable[];
 extern const uint8_t gNoiseTable[];
-
-extern const struct PokemonCrySong gPokemonCrySongTemplate;
 
 extern const struct ToneData voicegroup000;
 
@@ -434,18 +389,6 @@ void m4aMPlayPanpotControl(struct MusicPlayerInfo *mplayInfo, uint16_t trackBits
 void ClearModM(struct MusicPlayerTrack *track);
 void m4aMPlayModDepthSet(struct MusicPlayerInfo *mplayInfo, uint16_t trackBits, uint8_t modDepth);
 void m4aMPlayLFOSpeedSet(struct MusicPlayerInfo *mplayInfo, uint16_t trackBits, uint8_t lfoSpeed);
-
-struct MusicPlayerInfo *SetPokemonCryTone(struct ToneData *tone);
-void SetPokemonCryVolume(uint8_t val);
-void SetPokemonCryPanpot(int8_t val);
-void SetPokemonCryPitch(int16_t val);
-void SetPokemonCryLength(uint16_t val);
-void SetPokemonCryRelease(uint8_t val);
-void SetPokemonCryProgress(uint32_t val);
-int IsPokemonCryPlaying(struct MusicPlayerInfo *mplayInfo);
-void SetPokemonCryChorus(int8_t val);
-void SetPokemonCryStereo(uint32_t val);
-void SetPokemonCryPriority(uint8_t val);
 
 // sound command handler functions
 void MP2K_event_fine(struct MP2KPlayerState *, struct MP2KTrack *);

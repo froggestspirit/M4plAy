@@ -127,7 +127,6 @@
 .include "sound/voicegroups/voicegroup126.inc"
 .include "sound/voicegroups/voicegroup127.inc"
 .include "sound/voicegroups/voicegroup128.inc"
-.include "sound/cry_tables.inc"
 .include "sound/voicegroups/voicegroup129.inc"
 .include "sound/voicegroups/voicegroup130.inc"
 .include "sound/voicegroups/voicegroup131.inc"

@@ -138,15 +138,3 @@
 	.int \voice_group_pointer
 	.int 0
 	.endm
-
-	.macro cry sample:req
-	.byte 0x20, 60, 0, 0
-	.int \sample
-	.byte 0xff, 0, 0xff, 0
-	.endm
-
-	.macro cry2 sample:req
-	.byte 0x30, 60, 0, 0
-	.int \sample
-	.byte 0xff, 0, 0xff, 0
-	.endm

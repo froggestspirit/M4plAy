@@ -256,10 +256,6 @@ const uint8_t gClockTable[] =
 #define EOT    0xce
 #define TIE    0xcf
 
-const struct PokemonCrySong gPokemonCrySongTemplate =
-{
-
-};
 
 const XcmdFunc gXcmdTable[] =
 {
