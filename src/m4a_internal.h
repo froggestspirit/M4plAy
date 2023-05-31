@@ -1,6 +1,7 @@
+#include <stdint.h>
+
 #ifndef GUARD_GBA_M4A_INTERNAL_H
 #define GUARD_GBA_M4A_INTERNAL_H
-
 
 // ASCII encoding of 'Smsh' in reverse
 // This is presumably short for SMASH, the developer of MKS4AGB.
@@ -309,13 +310,6 @@ struct MusicPlayerInfo
     struct MusicPlayerInfo *musicPlayerNext;
 };
 
-struct MusicPlayer
-{
-    struct MusicPlayerInfo *info;
-    struct MusicPlayerTrack *track;
-    uint8_t unk_8;
-    uint16_t unk_A;
-};
 
 struct Song
 {
@@ -323,10 +317,6 @@ struct Song
     uint16_t ms;
     uint16_t me;
 };
-
-extern const struct MusicPlayer gMPlayTable[];
-extern const struct Song gSongTable[];
-
 
 
 extern uint8_t gMPlayMemAccArea[];

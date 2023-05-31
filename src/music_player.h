@@ -1,6 +1,7 @@
 #ifndef MUSIC_PLAYER_H
 #define MUSIC_PLAYER_H
 
+#include <stdint.h>
 #include "sound_mixer.h"
 
 #define PLAYER_UNLOCKED 0x68736D53
@@ -27,7 +28,7 @@ struct MP2KInstrument {
     union {
         uint32_t wav;  // struct WaveData *wav;
         uint32_t group;  // struct MP2KInstrument *group;
-        uint32_t *cgb3Sample;
+        uint32_t cgbSample;  // uint32_t *cgb3Sample;
         uint32_t squareNoiseConfig;
     };
     union {

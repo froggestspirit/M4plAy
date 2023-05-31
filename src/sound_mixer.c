@@ -239,13 +239,7 @@ static inline void GenerateAudio(struct SoundMixerState *mixer, struct MixerSour
     int8_t *current = chan->current;
     signed envR = chan->envelopeVolR;
     signed envL = chan->envelopeVolL;
-#ifdef POKEMON_EXTENSIONS
-    if (chan->type & 0x30) {
-        GeneratePokemonSampleAudio(mixer, chan, current, outBuffer, samplesPerFrame, sampleRateReciprocal, samplesLeftInWav, envR, envL);
-    }
-    else
-#endif
-    if (chan->type & 8) {
+    /*if (chan->type & 8) {
         for (uint16_t i = 0; i < samplesPerFrame; i++, outBuffer+=2) {
             int_fast8_t c = *(current++);
             
@@ -264,55 +258,55 @@ static inline void GenerateAudio(struct SoundMixerState *mixer, struct MixerSour
         
         chan->ct = samplesLeftInWav;
         chan->current = current;
-    } else {
-        float finePos = chan->fw;
-        float romSamplesPerOutputSample = chan->freq * sampleRateReciprocal;
+    } else {*/
+    float finePos = chan->fw;
+    float romSamplesPerOutputSample = chan->freq * sampleRateReciprocal;
 
-        int_fast16_t b = current[0];
-        int_fast16_t m = current[1] - b;
-        current += 1;
+    int_fast16_t b = current[0];
+    int_fast16_t m = current[1] - b;
+    current += 1;
+    
+    for (uint16_t i = 0; i < samplesPerFrame; i++, outBuffer+=2) {
+        // Use linear interpolation to calculate a value between the current sample in the wav
+        // and the next sample. Also cancel out the 9.23 stuff
+        float sample = (finePos * m) + b;
         
-        for (uint16_t i = 0; i < samplesPerFrame; i++, outBuffer+=2) {
-            // Use linear interpolation to calculate a value between the current sample in the wav
-            // and the next sample. Also cancel out the 9.23 stuff
-            float sample = (finePos * m) + b;
-            
-            outBuffer[1] += (sample * envR) / 32768.0f;
-            outBuffer[0] += (sample * envL) / 32768.0f;
-            
-            finePos += romSamplesPerOutputSample;
-            uint32_t newCoarsePos = finePos;
-            if (newCoarsePos != 0) {
-                finePos -= (int)finePos;
-                samplesLeftInWav -= newCoarsePos;
-                if (samplesLeftInWav <= 0) {
-                    if (loopLen != 0) {
-                        current = loopStart;
-                        newCoarsePos = -samplesLeftInWav;
+        outBuffer[1] += (sample * envR) / 32768.0f;
+        outBuffer[0] += (sample * envL) / 32768.0f;
+        
+        finePos += romSamplesPerOutputSample;
+        uint32_t newCoarsePos = finePos;
+        if (newCoarsePos != 0) {
+            finePos -= (int)finePos;
+            samplesLeftInWav -= newCoarsePos;
+            if (samplesLeftInWav <= 0) {
+                if (loopLen != 0) {
+                    current = loopStart;
+                    newCoarsePos = -samplesLeftInWav;
+                    samplesLeftInWav += loopLen;
+                    while (samplesLeftInWav <= 0) {
+                        newCoarsePos -= loopLen;
                         samplesLeftInWav += loopLen;
-                        while (samplesLeftInWav <= 0) {
-                            newCoarsePos -= loopLen;
-                            samplesLeftInWav += loopLen;
-                        }
-                        b = current[newCoarsePos];
-                        m = current[newCoarsePos + 1] - b;
-                        current += newCoarsePos + 1;
-                    } else {
-                        chan->status = 0;
-                        return;
                     }
+                    b = current[newCoarsePos];
+                    m = current[newCoarsePos + 1] - b;
+                    current += newCoarsePos + 1;
                 } else {
-                    b = current[newCoarsePos - 1];
-                    m = current[newCoarsePos] - b;
-                    current += newCoarsePos;
+                    chan->status = 0;
+                    return;
                 }
+            } else {
+                b = current[newCoarsePos - 1];
+                m = current[newCoarsePos] - b;
+                current += newCoarsePos;
             }
         }
-        
-        chan->fw = finePos;
-        chan->ct = samplesLeftInWav;
-        chan->current = current - 1;
     }
+    
+    chan->fw = finePos;
+    chan->ct = samplesLeftInWav;
+    chan->current = current - 1;
+    //}
 }
 
 struct WaveData

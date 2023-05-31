@@ -18,7 +18,7 @@ struct MusicPlayerInfo gMPlayInfo_BGM;
 struct MusicPlayerInfo gMPlayInfo_SE1;
 struct MusicPlayerInfo gMPlayInfo_SE2;
 struct MusicPlayerInfo gMPlayInfo_SE3;
-struct MusicPlayerTrack gMPlayTrack_BGM[10];
+struct MusicPlayerTrack gMPlayTrack_BGM[MAX_MUSICPLAYER_TRACKS];
 struct MusicPlayerTrack gMPlayTrack_SE1[3];
 struct MusicPlayerTrack gMPlayTrack_SE2[9];
 struct MusicPlayerTrack gMPlayTrack_SE3[1];
@@ -91,7 +91,7 @@ void m4aSoundInit(uint8_t *_music, uint32_t _songTableAddress)
     for (i = 0; i < NUM_MUSIC_PLAYERS; i++)
     {
         struct MusicPlayerInfo *mplayInfo = &gMPlayInfo_BGM;
-        MPlayOpen(mplayInfo, &gMPlayTrack_BGM, 10);
+        MPlayOpen(mplayInfo, &gMPlayTrack_BGM, MAX_MUSICPLAYER_TRACKS);
         mplayInfo->unk_B = 0;
         mplayInfo->memAccArea = gMPlayMemAccArea;
     }

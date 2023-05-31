@@ -1,3 +1,5 @@
+#include <stdint.h>
+
 #ifndef CGB_TABLES_H
 #define CGB_TABLES_H
 

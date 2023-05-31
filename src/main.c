@@ -29,7 +29,7 @@ int main(int argc, char **argv)
 {
     song = 400;  // 13
     filename = "emerald.gba";  // sa2.gba
-    songTableAddress = 0x6B49F0;  // 11358028
+    songTableAddress = 7031280;  // 11358028
     if (argc > 1) filename = argv[1];
     if (argc > 2) songTableAddress = atoi(argv[2]);
     if (argc > 3) song = atoi(argv[3]);
@@ -97,6 +97,12 @@ int main(int argc, char **argv)
                     accumulator -= dt;
                 }
             }
+        }
+        SDL_Event event;
+
+        while (SDL_PollEvent(&event)) {
+            if (event.type == SDL_QUIT)
+                isRunning = false;
         }
     }
     SDL_Quit();

@@ -1,3 +1,5 @@
+#include <stdint.h>
+
 #ifndef CGB_AUDIO_H
 #define CGB_AUDIO_H
 
