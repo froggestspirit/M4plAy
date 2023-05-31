@@ -5,6 +5,10 @@
 #include "cgb_audio.h"
 #include "io_reg.h"
 
+uint8_t music[0x8000000];
+uint32_t songTableAddress;
+FILE *musicFile = NULL;
+char *filename;
 
 unsigned char REG_BASE[0x400] __attribute__ ((aligned (4)));
 
@@ -23,8 +27,20 @@ int song;
 
 int main(int argc, char **argv)
 {
-    song = 400;
-    if (argc > 1) song = atoi(argv[1]);
+    song = 400;  // 13
+    filename = "emerald.gba";  // sa2.gba
+    songTableAddress = 0x6B49F0;  // 11358028
+    if (argc > 1) filename = argv[1];
+    if (argc > 2) songTableAddress = atoi(argv[2]);
+    if (argc > 3) song = atoi(argv[3]);
+    musicFile = fopen(filename, "rb");
+    if (0 != fseek(musicFile, 0, SEEK_END)) return false;
+    int sizef = ftell(musicFile);
+    if (0 != fseek(musicFile, 0, SEEK_SET)) return false;
+    if (sizef != fread(music, 1, sizef, musicFile)) return false;
+    fclose(musicFile);
+
+
     if(SDL_Init(SDL_INIT_AUDIO) < 0)
     {
         fprintf(stderr, "SDL could not initialize! SDL_Error: %s\n", SDL_GetError());
@@ -52,7 +68,7 @@ int main(int argc, char **argv)
         SDL_PauseAudio(0);
     }
     
-    m4aSoundInit();
+    m4aSoundInit(music, songTableAddress);
     m4aSongNumStart(song);
 
     double accumulator = 0.0;

@@ -49,20 +49,7 @@ void MP2KClearChain(struct MixerSource *chan) {
     chan->track = NULL;
 }
 
-// In case newer compilers are too dumb to remove this logic at compile time.
-#define SKIP_GBA_BIOS_CHECKS
-// #define NOT_GBA
-
-#if defined(SKIP_GBA_BIOS_CHECKS) || defined(NOT_GBA)
 #define VERIFY_PTR(x) do; while (0)
-#else
-#define VERIFY_PTR(x) do {\
-    uintptr_t y = (uintptr_t)(x);\
-    if (y < EWRAM_START && (y < (uintptr_t)&gMPlayJumpTableTemplate || y >= 0x40000)) {\
-        ret = 0;\
-    }\
-} while (0)
-#endif
 
 static uint8_t SafeDereferenceU8(uint8_t *addr) {
     uint8_t ret = *addr;
@@ -106,82 +93,6 @@ static void *SafeDereferenceVoidPtr(void **addr) {
     return ret;
 }
 
-#ifndef NOT_GBA
-// I read an article about undefined behavior today so I'm feeling especially cautious
-// I'm definitely bringing this onto compiler explorer for some laughs... heh...
-// ...Sorry
-struct MP2KInstrument SafeDereferenceMP2KInstrument(struct MP2KInstrument *addr) {
-    struct MP2KInstrument instrument;
-    if (addr->type == SafeDereferenceU8(&addr->type)
-     && addr->drumKey == SafeDereferenceU8(&addr->drumKey)
-     && addr->cgbLength == SafeDereferenceU8(&addr->cgbLength)
-     && addr->panSweep == SafeDereferenceU8(&addr->panSweep)) {
-         instrument.type = addr->type;
-         instrument.drumKey = addr->drumKey;
-         instrument.cgbLength = addr->cgbLength;
-         instrument.panSweep = addr->panSweep;
-    } else {
-        instrument.type = 0;
-        instrument.drumKey = 0;
-        instrument.cgbLength = 0;
-        instrument.panSweep = 0;
-    }
-    
-    // I don't know how much the optimizer can eff with weird union stuff so I might as well go through
-    // all the steps to check which union member to access...?
-    if (instrument.type & 0xC0) {
-        if (addr->group == SafeDereferenceMP2KInstrumentPtr(&addr->group)) {
-            instrument.group = addr->group;
-        } else {
-            instrument.group = NULL;
-        }
-        
-        if (addr->keySplitTable == SafeDereferenceU8Ptr(&addr->keySplitTable)) {
-            instrument.keySplitTable = addr->keySplitTable;
-        } else {
-            instrument.keySplitTable = NULL;
-        }
-        return instrument;
-    } else if (instrument.type & 0x7) {
-        if ((instrument.type & 0x7) == 3) {
-            if (addr->cgb3Sample == SafeDereferenceU32Ptr(&addr->cgb3Sample)) {
-                instrument.cgb3Sample = addr->cgb3Sample;
-            } else {
-                instrument.cgb3Sample = NULL;
-            }
-        } else {
-            if (addr->squareNoiseConfig == SafeDereferenceU32(&addr->squareNoiseConfig)) {
-                instrument.squareNoiseConfig = addr->squareNoiseConfig;
-            } else {
-                instrument.squareNoiseConfig = 0;
-            }
-        }
-    } else {
-        if (addr->wav == SafeDereferenceWavDataPtr(&addr->wav)) {
-            instrument.wav = addr->wav;
-        } else {
-            instrument.wav = NULL;
-        }
-    }
-    
-    if (addr->attack == SafeDereferenceU8(&addr->attack)
-     && addr->decay == SafeDereferenceU8(&addr->decay)
-     && addr->sustain == SafeDereferenceU8(&addr->sustain)
-     && addr->release == SafeDereferenceU8(&addr->release)) {
-        instrument.attack = addr->attack;
-        instrument.decay = addr->decay;
-        instrument.sustain = addr->sustain;
-        instrument.release = addr->release;
-    } else {
-        instrument.attack = 0;
-        instrument.decay = 0;
-        instrument.sustain = 0;
-        instrument.release = 0;
-    }
-    return instrument;
-}
-#endif
-
 #undef VERIFY_PTR
 
 uint8_t ConsumeTrackByte(struct MP2KTrack *track) {
@@ -209,20 +120,11 @@ void MP2K_event_fine(struct MP2KPlayerState *unused, struct MP2KTrack *track) {
 
 // Sets the track's cmdPtr to the specified address.
 void MP2K_event_goto(struct MP2KPlayerState *unused, struct MP2KTrack *track) {
-#ifdef NOT_GBA
     uint8_t *addr;
     memcpy(&addr, track->cmdPtr, sizeof(uint8_t *));
     track->cmdPtr = addr;
-#else
-    uint8_t *cmdPtr = track->cmdPtr;
-    uintptr_t addr = 0;
-    for (size_t i = sizeof(uintptr_t) - 1; i > 0; i--) {
-        addr |= cmdPtr[i];
-        addr <<= 8;
-    }
-    addr |= SafeDereferenceU8(cmdPtr);
-    track->cmdPtr = (uint8_t*)addr;
-#endif
+    offsetPointer(&track->cmdPtr);
+    printf("goto: %x\n", track->cmdPtr);
 }
 
 // Sets the track's cmdPtr to the specified address after backing up its current position.
@@ -287,11 +189,7 @@ void MP2K_event_keysh(struct MP2KPlayerState *unused, struct MP2KTrack *track) {
 void MP2K_event_voice(struct MP2KPlayerState *player, struct MP2KTrack *track) {
     uint8_t voice = *(track->cmdPtr++);
     struct MP2KInstrument *instrument = &player->voicegroup[voice];
-#ifdef NOT_GBA
     track->instrument = *instrument;
-#else
-    track->instrument = SafeDereferenceMP2KInstrument(instrument);
-#endif
 }
 
 void MP2K_event_vol(struct MP2KPlayerState *unused, struct MP2KTrack *track) {
@@ -333,13 +231,8 @@ void MP2K_event_tune(struct MP2KPlayerState *unused, struct MP2KTrack *track) {
 
 void MP2K_event_port(struct MP2KPlayerState *unused, struct MP2KTrack *track) {
     // I'm really curious whether any games actually use this event...
-#ifdef NOT_GBA
     // I assume anything done by this command will get immediately overwritten by CgbSound?
     track->cmdPtr += 2;
-#else
-    volatile uint8_t* offset = (volatile uint8_t *)(REG_ADDR_NR10 + *(track->cmdPtr++));
-    *offset = ConsumeTrackByte(track);
-#endif
 }
 
 void MP2KPlayerMain(void *voidPtrPlayer) {
@@ -567,12 +460,18 @@ void MP2K_event_nxx(uint8_t clock, struct MP2KPlayerState *player, struct MP2KTr
     if (type & (TONEDATA_TYPE_RHY | TONEDATA_TYPE_SPL)) {
         uint8_t instrumentIndex;
         if (instrument->type & TONEDATA_TYPE_SPL) {
-            instrumentIndex = instrument->keySplitTable[track->key];
+            //instrumentIndex = instrument->keySplitTable[track->key];
+            uint8_t *keySplitTableOffset = instrument->keySplitTable;
+            offsetPointer(&keySplitTableOffset);
+            printf("instrument: %x\n", keySplitTableOffset);
+            instrumentIndex = keySplitTableOffset[track->key];
         } else {
             instrumentIndex = track->key;
         }
         
-        instrument = instrument->group + instrumentIndex;
+        instrument = instrument->group + (instrumentIndex * 12);
+        offsetPointer(&instrument);
+        printf("instrument: %x\n", instrument);
         if (instrument->type & (TONEDATA_TYPE_RHY | TONEDATA_TYPE_SPL)) {
             return;
         }
@@ -675,6 +574,7 @@ void MP2K_event_nxx(uint8_t clock, struct MP2KPlayerState *player, struct MP2KTr
     chan->rhythmPan = forcedPan;
     chan->type = instrument->type;
     chan->wav = instrument->wav;
+    offsetPointer(&chan->wav);
     chan->attack = instrument->attack;
     chan->decay = instrument->decay;
     chan->sustain = instrument->sustain;

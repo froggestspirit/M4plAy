@@ -59,7 +59,7 @@ struct ToneData
     uint8_t key;
     uint8_t length; // sound length (compatible sound)
     uint8_t pan_sweep; // pan or sweep (compatible sound ch. 1)
-    struct WaveData *wav;
+    uint32_t wav;  // struct WaveData *wav;
     uint8_t attack;
     uint8_t decay;
     uint8_t sustain;
@@ -163,7 +163,7 @@ struct SoundChannel
     uint16_t xpc;
 };
 
-#define MAX_DIRECTSOUND_CHANNELS 12
+#define MAX_DIRECTSOUND_CHANNELS 16
 #define PCM_DMA_BUF_SIZE 4907 // size of Direct Sound buffer
 
 struct MusicPlayerInfo;
@@ -220,8 +220,8 @@ struct SongHeader
     uint8_t blockCount;
     uint8_t priority;
     uint8_t reverb;
-    struct ToneData *tone;
-    uint8_t *part[1];
+    uint32_t tone;  // struct ToneData *tone;
+    uint32_t part[1]; // uint8_t *part[1];
 };
 
 #define MPT_FLG_VOLSET 0x01
@@ -319,7 +319,7 @@ struct MusicPlayer
 
 struct Song
 {
-    struct SongHeader *header;
+    uint32_t header;  // struct SongHeader *header;
     uint16_t ms;
     uint16_t me;
 };

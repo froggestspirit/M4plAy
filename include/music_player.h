@@ -25,8 +25,8 @@ struct MP2KInstrument {
     uint8_t cgbLength;
     uint8_t panSweep;
     union {
-        struct WaveData *wav;
-        struct MP2KInstrument *group;
+        uint32_t wav;  // struct WaveData *wav;
+        uint32_t group;  // struct MP2KInstrument *group;
         uint32_t *cgb3Sample;
         uint32_t squareNoiseConfig;
     };

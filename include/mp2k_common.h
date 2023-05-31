@@ -12,7 +12,6 @@
 #endif
 
 #define NOT_GBA_BIOS
-#define NOT_GBA
 //#define ORIGINAL_COARSE_POSITION_CLEARING
 #define POKEMON_EXTENSIONS
 

@@ -6,7 +6,7 @@
 void m4aSoundVSync(void);
 void m4aSoundVSyncOn(void);
 
-void m4aSoundInit(void);
+void m4aSoundInit(uint8_t *music, uint32_t songTableAddress);
 void m4aSoundMain(void);
 void m4aSongNumStart(uint16_t n);
 void m4aSongNumStartOrChange(uint16_t n);
