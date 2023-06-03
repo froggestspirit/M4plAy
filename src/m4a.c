@@ -104,22 +104,18 @@ void m4aSoundMain(void)
 
 void m4aSongNumStart(uint16_t n)
 {
-    //const struct MusicPlayer *mplayTable = gMPlayTable;
     const struct Song *songTable = (uintptr_t) musicData + songTableOffset;  //gSongTable;
-    printf("songTable: %x\n", songTable);
+    // printf("songTable: %x\n", songTable);
     const struct Song *song = &songTable[n];
-    //const struct MusicPlayer *mplay = &mplayTable[song->ms];
 
     MPlayStart(&gMPlayInfo_BGM, song->header);
 }
 
 void m4aSongNumStartOrChange(uint16_t n)
 {
-    //const struct MusicPlayer *mplayTable = gMPlayTable;
     const struct Song *songTable = (uintptr_t) musicData + songTableOffset;  //gSongTable;
-    printf("songTable: %x\n", songTable);
+    // printf("songTable: %x\n", songTable);
     const struct Song *song = &songTable[n];
-    //const struct MusicPlayer *mplay = &mplayTable[song->ms];
 
     if (gMPlayInfo_BGM.songHeader != song->header)
     {
@@ -137,11 +133,9 @@ void m4aSongNumStartOrChange(uint16_t n)
 
 void m4aSongNumStartOrContinue(uint16_t n)
 {
-    //const struct MusicPlayer *mplayTable = gMPlayTable;
     const struct Song *songTable = (uintptr_t) musicData + songTableOffset;  //gSongTable;
-    printf("songTable: %x\n", songTable);
+    // printf("songTable: %x\n", songTable);
     const struct Song *song = &songTable[n];
-    //const struct MusicPlayer *mplay = &mplayTable[song->ms];
 
     if (gMPlayInfo_BGM.songHeader != song->header)
         MPlayStart(&gMPlayInfo_BGM, song->header);
@@ -153,11 +147,9 @@ void m4aSongNumStartOrContinue(uint16_t n)
 
 void m4aSongNumStop(uint16_t n)
 {
-    //const struct MusicPlayer *mplayTable = gMPlayTable;
     const struct Song *songTable = (uintptr_t) musicData + songTableOffset;  //gSongTable;
-    printf("songTable: %x\n", songTable);
+    // printf("songTable: %x\n", songTable);
     const struct Song *song = &songTable[n];
-    //const struct MusicPlayer *mplay = &mplayTable[song->ms];
 
     if (gMPlayInfo_BGM.songHeader == song->header)
         m4aMPlayStop(&gMPlayInfo_BGM);
@@ -165,11 +157,9 @@ void m4aSongNumStop(uint16_t n)
 
 void m4aSongNumContinue(uint16_t n)
 {
-    //const struct MusicPlayer *mplayTable = gMPlayTable;
     const struct Song *songTable = (uintptr_t) musicData + songTableOffset;  //gSongTable;
-    printf("songTable: %x\n", songTable);
+    // printf("songTable: %x\n", songTable);
     const struct Song *song = &songTable[n];
-    //const struct MusicPlayer *mplay = &mplayTable[song->ms];
 
     if (gMPlayInfo_BGM.songHeader == song->header)
         MPlayContinue(&gMPlayInfo_BGM);
@@ -237,7 +227,6 @@ void m4aMPlayImmInit(struct MusicPlayerInfo *mplayInfo)
         {
             if (track->flags & MPT_FLG_START)
             {
-                Clear64byte(track);
                 track->flags = MPT_FLG_EXIST;
                 track->bendRange = 2;
                 track->volX = 64;
@@ -320,14 +309,7 @@ void MPlayExtender(struct CgbChannel *cgbChans)
 
 void ClearChain(void *x)
 {
-    void (*func)(void *) = *(&gMPlayJumpTable[34]);
-    func(x);
-}
-
-void Clear64byte(void *x)
-{
-    void (*func)(void *) = *(&gMPlayJumpTable[35]);
-    func(x);
+    MP2KClearChain(x);
 }
 
 void SoundInit(struct SoundInfo *soundInfo)
@@ -553,8 +535,6 @@ void MPlayOpen(struct MusicPlayerInfo *mplayInfo, struct MusicPlayerTrack *track
 
     soundInfo->ident++;
 
-    Clear64byte(mplayInfo);
-
     mplayInfo->tracks = tracks;
     mplayInfo->trackCount = trackCount;
     mplayInfo->status = MUSICPLAYER_STATUS_PAUSE;
@@ -572,8 +552,6 @@ void MPlayOpen(struct MusicPlayerInfo *mplayInfo, struct MusicPlayerTrack *track
     {
         mplayInfo->MPlayMainNext = soundInfo->MPlayMainHead;
         mplayInfo->musicPlayerNext = soundInfo->musicPlayerHead;
-        // NULL assignment semantically useless, but required for match
-        soundInfo->MPlayMainHead = NULL;
     }
 
     soundInfo->musicPlayerHead = (uint32_t)mplayInfo;
@@ -585,7 +563,7 @@ void MPlayOpen(struct MusicPlayerInfo *mplayInfo, struct MusicPlayerTrack *track
 void MPlayStart(struct MusicPlayerInfo *mplayInfo, struct SongHeader *songHeader)
 {
     offsetPointer(&songHeader);
-    printf("songHeader: %x\n", songHeader);
+    // printf("songHeader: %x\n", songHeader);
     int32_t i;
     uint8_t unk_B;
     struct MusicPlayerTrack *track;
@@ -606,7 +584,7 @@ void MPlayStart(struct MusicPlayerInfo *mplayInfo, struct SongHeader *songHeader
         mplayInfo->songHeader = songHeader;
         mplayInfo->tone = songHeader->tone;
         offsetPointer(&mplayInfo->tone);
-        printf("mplayInfo->tone: %x\n", mplayInfo->tone);
+        // printf("mplayInfo->tone: %x\n", mplayInfo->tone);
         mplayInfo->priority = songHeader->priority;
         mplayInfo->clock = 0;
         mplayInfo->tempoD = 150;
@@ -625,7 +603,7 @@ void MPlayStart(struct MusicPlayerInfo *mplayInfo, struct SongHeader *songHeader
             track->chan = 0;
             track->cmdPtr = songHeader->part[i];// + (uintptr_t) musicData;
             offsetPointer(&track->cmdPtr);
-            printf("track %x: %x\n", i, track->cmdPtr);
+            // printf("track %x: %x\n", i, track->cmdPtr);
             i++;
             track++;
         }

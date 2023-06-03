@@ -34,7 +34,7 @@ void RunMixerFrame(void) {
         }
     }
     
-    if (mixer->firstPlayerFunc != NULL) {
+    if (mixer->firstPlayerFunc != NULL) {//TODO for 64-bit builds
         mixer->firstPlayerFunc(mixer->firstPlayer);
     }
     

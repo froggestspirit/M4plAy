@@ -124,7 +124,7 @@ void MP2K_event_goto(struct MP2KPlayerState *unused, struct MP2KTrack *track) {
     memcpy(&addr, track->cmdPtr, sizeof(uint8_t *));
     track->cmdPtr = addr;
     offsetPointer(&track->cmdPtr);
-    printf("goto: %x\n", track->cmdPtr);
+    // printf("goto: %x\n", track->cmdPtr);
 }
 
 // Sets the track's cmdPtr to the specified address after backing up its current position.
@@ -463,7 +463,7 @@ void MP2K_event_nxx(uint8_t clock, struct MP2KPlayerState *player, struct MP2KTr
             //instrumentIndex = instrument->keySplitTable[track->key];
             uint8_t *keySplitTableOffset = instrument->keySplitTable;
             offsetPointer(&keySplitTableOffset);
-            printf("instrument: %x\n", keySplitTableOffset);
+            // printf("instrument: %x\n", keySplitTableOffset);
             instrumentIndex = keySplitTableOffset[track->key];
         } else {
             instrumentIndex = track->key;
@@ -471,7 +471,7 @@ void MP2K_event_nxx(uint8_t clock, struct MP2KPlayerState *player, struct MP2KTr
         
         instrument = instrument->group + (instrumentIndex * 12);
         offsetPointer(&instrument);
-        printf("instrument: %x\n", instrument);
+        // printf("instrument: %x\n", instrument);
         if (instrument->type & (TONEDATA_TYPE_RHY | TONEDATA_TYPE_SPL)) {
             return;
         }
@@ -658,7 +658,7 @@ void m4aSoundVSync(void)
             m4aBuffer += samplesPerFrame * (mixer->framesPerDmaCycle - (dmaCounter - 1));
         }
 
-        for(uint32_t i = 0; i < samplesPerFrame; i++)
+        for(uint32_t i = 0; i < samplesPerFrame; i++)  // TODO for 64-bit builds
             audioBuffer[i] = m4aBuffer[i] + cgbBuffer[i];
 
         SDL_QueueAudio(1, audioBuffer, samplesPerFrame * 4);

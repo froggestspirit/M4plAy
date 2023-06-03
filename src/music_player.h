@@ -38,7 +38,7 @@ struct MP2KInstrument {
             uint8_t sustain;
             uint8_t release;
         };
-        uint8_t *keySplitTable;
+        uint32_t keySplitTable;  // uint8_t *keySplitTable;
     };
 };
 
@@ -85,7 +85,7 @@ struct MP2KTrack {
 };
 
 struct MP2KPlayerState {
-    struct MP2KSongHeader *songHeader;
+    struct SongHeader *songHeader;
     volatile uint32_t status;
     uint8_t trackCount;
     uint8_t priority;
