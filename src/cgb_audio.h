@@ -3,7 +3,7 @@
 #ifndef CGB_AUDIO_H
 #define CGB_AUDIO_H
 
-#define MIXED_AUDIO_BUFFER_SIZE 4907
+#define PCM_DMA_BUF_SIZE 4907
 
 struct AudioCGB{
     uint16_t ch1Freq;
@@ -22,7 +22,7 @@ struct AudioCGB{
     uint8_t DAC[4];
     float WAVRAM[32];
     uint16_t ch4LFSR [2];
-    __attribute__((aligned(4))) float outBuffer[MIXED_AUDIO_BUFFER_SIZE * 2];
+    __attribute__((aligned(4))) float outBuffer[PCM_DMA_BUF_SIZE * 2];
 };
 
 void cgb_audio_init(uint32_t rate);

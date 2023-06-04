@@ -2,7 +2,7 @@
 #define MUSIC_PLAYER_H
 
 #include <stdint.h>
-#include "sound_mixer.h"
+#include "m4a_internal.h"
 
 #define PLAYER_UNLOCKED 0x68736D53
 #define PLAYER_LOCKED PLAYER_UNLOCKED+1
@@ -13,21 +13,21 @@ struct WaveData2
     uint8_t compressionFlags2;
     uint8_t compressionFlags3;
     uint8_t loopFlags;
-    uint32_t freq;  // 22.10 fixed width decimal, freq of C4. Or just the frequency of C14.
+    uint32_t freq;  // 22.10 fixed width decimal, freq of C4. Or just the freq of C14.
     uint32_t loopStart;
     uint32_t size; // number of samples
     int8_t data[]; // samples
 };
 
 
-struct MP2KInstrument {
+/*struct ToneData {
     uint8_t type;
     uint8_t drumKey;
-    uint8_t cgbLength;
+    uint8_t length;
     uint8_t panSweep;
     union {
         uint32_t wav;  // struct WaveData *wav;
-        uint32_t group;  // struct MP2KInstrument *group;
+        uint32_t group;  // struct ToneData *group;
         uint32_t cgbSample;  // uint32_t *cgb3Sample;
         uint32_t squareNoiseConfig;
     };
@@ -40,10 +40,10 @@ struct MP2KInstrument {
         };
         uint32_t keySplitTable;  // uint8_t *keySplitTable;
     };
-};
+};*/
 
-struct MP2KTrack {
-    uint8_t status;
+/*struct MusicPlayerTrack {
+    uint8_t flags;
     uint8_t wait;
     uint8_t patternLevel;
     uint8_t repeatCount;
@@ -75,16 +75,16 @@ struct MP2KTrack {
     uint8_t priority;
     uint8_t echoVolume;
     uint8_t echoLength;
-    struct MixerSource *chan;
-    struct MP2KInstrument instrument;
-    uint8_t gap[10];
+    struct SoundChannel *chan;
+    struct ToneData instrument;
+    uint8_t padding[10];
     uint16_t unk_3A;
-    uint32_t ct;
+    uint32_t count;
     uint8_t *cmdPtr;
     uint8_t *patternStack[3];
-};
+};*/
 
-struct MP2KPlayerState {
+/*struct MusicPlayerInfo {
     struct SongHeader *songHeader;
     volatile uint32_t status;
     uint8_t trackCount;
@@ -93,34 +93,31 @@ struct MP2KPlayerState {
     uint8_t checkSongPriority;
     uint32_t clock;
     uint8_t padding[8];
-    uint8_t *memaccArea;
+    uint8_t *memAccArea;
     uint16_t tempoRawBPM; // 150 initially... this doesn't seem right but whatever
     uint16_t tempoScale; // 0x100 initially
     uint16_t tempoInterval; // 150 initially
     uint16_t tempoCounter;
     uint16_t fadeInterval;
     uint16_t fadeCounter;
-    uint16_t isFadeTemporary:1;
-    uint16_t isFadeIn:1;
-    uint16_t fadeVolume:7;
-    uint16_t :7; // padding
-    struct MP2KTrack *tracks;
-    struct MP2KInstrument *voicegroup;
+    uint16_t fadeVolume;
+    struct MusicPlayerTrack *tracks;
+    struct ToneData *voicegroup;
     volatile uint32_t lockStatus;
     void (*nextPlayerFunc)(void *);
     void *nextPlayer;
-};
+};*/
 
 struct MP2KPlayerCtor {
-    struct MP2KPlayerState *player;
-    struct MP2KTrack *tracks;
+    struct MusicPlayerInfo *player;
+    struct MusicPlayerTrack *tracks;
     uint8_t trackCount;
     uint8_t padding;
     uint16_t checkSongPriority;
 };
 
-void clear_modM(struct MP2KPlayerState *unused, struct MP2KTrack *track);
-void MP2K_event_endtie(struct MP2KPlayerState *unused, struct MP2KTrack *track);
-void MP2K_event_lfos(struct MP2KPlayerState *unused, struct MP2KTrack *track);
-void MP2K_event_mod(struct MP2KPlayerState *unused, struct MP2KTrack *track);
+void clear_modM(struct MusicPlayerInfo *unused, struct MusicPlayerTrack *track);
+void MP2K_event_endtie(struct MusicPlayerInfo *unused, struct MusicPlayerTrack *track);
+void MP2K_event_lfos(struct MusicPlayerInfo *unused, struct MusicPlayerTrack *track);
+void MP2K_event_mod(struct MusicPlayerInfo *unused, struct MusicPlayerTrack *track);
 #endif

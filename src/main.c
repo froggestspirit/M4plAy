@@ -12,7 +12,7 @@ char *filename;
 
 unsigned char REG_BASE[0x400] __attribute__ ((aligned (4)));
 
-struct SoundInfo *SOUND_INFO_PTR;
+struct SoundMixerState *SOUND_INFO_PTR;
 
 SDL_atomic_t isFrameAvailable;
 bool isRunning = 1;
