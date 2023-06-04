@@ -254,6 +254,7 @@ struct SoundMixerState
     void *reserved5;
     struct SoundChannel chans[MAX_DIRECTSOUND_CHANNELS];
     float outBuffer[PCM_DMA_BUF_SIZE * 2];
+    float cgbBuffer[PCM_DMA_BUF_SIZE * 2];
 };
 
 struct SongHeader

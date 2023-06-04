@@ -13,7 +13,6 @@ extern struct SoundMixerState *SOUND_INFO_PTR;
 static inline void GenerateAudio(struct SoundMixerState *mixer, struct SoundChannel *chan, struct WaveData *wav, float *outBuffer, uint16_t samplesPerFrame, float divFreq);
 void SampleMixer(struct SoundMixerState *mixer, uint32_t scanlineLimit, uint16_t samplesPerFrame, float *outBuffer, uint8_t dmaCounter, uint16_t maxBufSize);
 static inline uint32_t TickEnvelope(struct SoundChannel *chan, struct WaveData *wav);
-void GeneratePokemonSampleAudio(struct SoundMixerState *mixer, struct SoundChannel *chan, int8_t *currentPointer, float *outBuffer, uint16_t samplesPerFrame, float divFreq, int32_t samplesLeftInWav, signed envR, signed envL);
 
 void RunMixerFrame(void) {
     struct SoundMixerState *mixer = SOUND_INFO_PTR;
@@ -32,7 +31,7 @@ void RunMixerFrame(void) {
         }
     }
     
-    if (mixer->firstPlayerFunc != NULL) {//TODO for 64-bit builds
+    if (mixer->firstPlayerFunc != NULL) {
         mixer->firstPlayerFunc(mixer->firstPlayer);
     }
     
@@ -40,6 +39,8 @@ void RunMixerFrame(void) {
     
     int32_t samplesPerFrame = mixer->samplesPerFrame;
     float *outBuffer = mixer->outBuffer;
+    float *cgbBuffer = mixer->cgbBuffer;
+    
     int32_t dmaCounter = mixer->dmaCounter;
     
     if (dmaCounter > 1) {
@@ -49,7 +50,7 @@ void RunMixerFrame(void) {
     //MixerRamFunc mixerRamFunc = ((MixerRamFunc)MixerCodeBuffer);
     SampleMixer(mixer, maxScanlines, samplesPerFrame, outBuffer, dmaCounter, PCM_DMA_BUF_SIZE);
 
-    cgb_audio_generate(samplesPerFrame);
+    cgb_audio_generate(samplesPerFrame, cgbBuffer);
 
 }
 
@@ -205,13 +206,8 @@ static inline uint32_t TickEnvelope(struct SoundChannel *chan, struct WaveData *
     } else {
         // Init channel
         chan->statusFlags = 3;
-#ifdef POKEMON_EXTENSIONS
         chan->currentPointer = wav->data + chan->count;
         chan->count = wav->size - chan->count;
-#else
-        chan->currentPointer = wav->data;
-        chan->count = wav->size;
-#endif
         chan->fw = 0;
         chan->envelopeVolume = 0;
         if (wav->loopFlags & 0xC0) {
@@ -222,7 +218,7 @@ static inline uint32_t TickEnvelope(struct SoundChannel *chan, struct WaveData *
 }
 
 //__attribute__((target("thumb")))
-static inline void GenerateAudio(struct SoundMixerState *mixer, struct SoundChannel *chan, struct WaveData *wav, float *outBuffer, uint16_t samplesPerFrame, float divFreq) {/*, [[[]]]) {*/
+static inline void GenerateAudio(struct SoundMixerState *mixer, struct SoundChannel *chan, struct WaveData *wav, float *outBuffer, uint16_t samplesPerFrame, float divFreq) {
     uint_fast8_t v = chan->envelopeVolume * (mixer->masterVol + 1) / 16U;
     chan->envelopeVolumeRight = chan->rightVolume * v / 256U;
     chan->envelopeVolumeLeft = chan->leftVolume * v / 256U;
@@ -305,68 +301,4 @@ static inline void GenerateAudio(struct SoundMixerState *mixer, struct SoundChan
     chan->count = samplesLeftInWav;
     chan->currentPointer = currentPointer - 1;
     //}
-}
-
-
-void GeneratePokemonSampleAudio(struct SoundMixerState *mixer, struct SoundChannel *chan, int8_t *currentPointer, float *outBuffer, uint16_t samplesPerFrame, float divFreq, int32_t samplesLeftInWav, signed envR, signed envL) {
-    struct WaveData *wav = chan->wav; // r6
-    float finePos = chan->fw;
-    if((chan->statusFlags & 0x20) == 0) {
-        chan->statusFlags |= 0x20;
-        if(chan->type & 0x10) {
-            int8_t *waveEnd = wav->data + wav->size;
-            currentPointer = wav->data + (waveEnd - currentPointer);
-            chan->currentPointer = currentPointer;
-        }
-        if(wav->type != 0) {
-            currentPointer -= (uintptr_t)&wav->data;
-            chan->currentPointer = currentPointer;
-        }
-    }
-    float romSamplesPerOutputSample = chan->type & 8 ? 1.0f : chan->freq * divFreq;
-    if(wav->type != 0) { // is compressed
-        chan->xpi = 0;
-        chan->xpc = 0xFF00;
-        if(chan->type & 0x20) {
-
-        }
-        else {
-
-        } 
-        //TODO: implement compression
-    }
-    else {
-        if(chan->type & 0x10) {
-            currentPointer -= 1;
-            int_fast16_t b = currentPointer[0];
-            int_fast16_t m = currentPointer[-1] - b;
-            
-            for (uint16_t i = 0; i < samplesPerFrame; i++, outBuffer+=2) {
-                float sample = (finePos * m) + b;
-                
-                outBuffer[1] += (sample * envR) / 32768.0f;
-                outBuffer[0] += (sample * envL) / 32768.0f;
-                
-                finePos += romSamplesPerOutputSample;
-                int newCoarsePos = finePos;
-                if (newCoarsePos != 0) {
-                    finePos -= (int)finePos;
-                    samplesLeftInWav -= newCoarsePos;
-                    if (samplesLeftInWav <= 0) {
-                        chan->statusFlags = 0;
-                        break;
-                    }
-                    else {
-                        currentPointer -= newCoarsePos;
-                        b = currentPointer[0];
-                        m = currentPointer[-1] - b;
-                    }
-                }
-            }
-            
-            chan->fw = finePos;
-            chan->count = samplesLeftInWav;
-            chan->currentPointer = currentPointer + 1;
-        }
-    }
 }

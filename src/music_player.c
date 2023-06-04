@@ -3,8 +3,6 @@
 #include "mp2k_common.h"
 #include "m4a_internal.h"
 
-// Don't uncomment this. vvvvv
-// #define POKEMON_EXTENSIONS
 #define PCM_DMA_BUF_SIZE 4907
 
 static uint32_t MidiKeyToFreq(struct WaveData *wav, uint8_t key, uint8_t pitch);
@@ -119,18 +117,15 @@ void MP2K_event_fine(struct MusicPlayerInfo *unused, struct MusicPlayerTrack *tr
 
 // Sets the track's cmdPtr to the specified address.
 void MP2K_event_goto(struct MusicPlayerInfo *unused, struct MusicPlayerTrack *track) {
-    uint8_t *addr;
-    memcpy(&addr, track->cmdPtr, sizeof(uint8_t *));
-    track->cmdPtr = addr;
+    track->cmdPtr = *(uint32_t *)track->cmdPtr;
     offsetPointer(&track->cmdPtr);
-    // printf("goto: %x\n", track->cmdPtr);
 }
 
 // Sets the track's cmdPtr to the specified address after backing up its current position.
 void MP2K_event_patt(struct MusicPlayerInfo *unused, struct MusicPlayerTrack *track) {
     uint8_t level = track->patternLevel;
     if (level < 3) {
-        track->patternStack[level] = track->cmdPtr + sizeof(uint8_t *);
+        track->patternStack[level] = track->cmdPtr + 4;  // sizeof(uint8_t *);
         track->patternLevel++;
         MP2K_event_goto(unused, track);
     } else {
@@ -430,7 +425,7 @@ void ChnVolSetAsm(struct SoundChannel *chan, struct MusicPlayerTrack *track) {
     chan->leftVolume = leftVolume;
 }
 
-void MP2K_event_nxx(uint8_t clock, struct MusicPlayerInfo *player, struct MusicPlayerTrack *track) { // ply_note
+void MP2K_event_nxx(uint8_t clock, struct MusicPlayerInfo *player, struct MusicPlayerTrack *track) {
     struct SoundMixerState *mixer = SOUND_INFO_PTR;
     
     // A note can be anywhere from 1 to 4 bytes long. First is always the note length...
@@ -459,10 +454,8 @@ void MP2K_event_nxx(uint8_t clock, struct MusicPlayerInfo *player, struct MusicP
     if (type & (TONEDATA_TYPE_RHY | TONEDATA_TYPE_SPL)) {
         uint8_t instrumentIndex;
         if (instrument->type & TONEDATA_TYPE_SPL) {
-            //instrumentIndex = instrument->keySplitTable[track->key];
             uint8_t *keySplitTableOffset = instrument->keySplitTable;
             offsetPointer(&keySplitTableOffset);
-            // printf("instrument: %x\n", keySplitTableOffset);
             instrumentIndex = keySplitTableOffset[track->key];
         } else {
             instrumentIndex = track->key;
@@ -470,7 +463,6 @@ void MP2K_event_nxx(uint8_t clock, struct MusicPlayerInfo *player, struct MusicP
         
         instrument = instrument->group + (instrumentIndex * 12);
         offsetPointer(&instrument);
-        // printf("instrument: %x\n", instrument);
         if (instrument->type & (TONEDATA_TYPE_RHY | TONEDATA_TYPE_SPL)) {
             return;
         }
@@ -600,9 +592,7 @@ void MP2K_event_nxx(uint8_t clock, struct MusicPlayerInfo *player, struct MusicP
         
         chan->freq = mixer->cgbCalcFreqFunc(cgbType, transposedKey, track->pitchCalculated);
     } else {
-#ifdef POKEMON_EXTENSIONS
         chan->count = track->count;
-#endif
         chan->freq = MidiKeyToFreq(chan->wav, transposedKey, track->pitchCalculated);
     }
     
@@ -650,7 +640,7 @@ void m4aSoundVSync(void)
     {
         int32_t samplesPerFrame = mixer->samplesPerFrame * 2;
         float *m4aBuffer = mixer->outBuffer;
-        float *cgbBuffer = cgb_get_buffer();
+        float *cgbBuffer = mixer->cgbBuffer;
         int32_t dmaCounter = mixer->dmaCounter;
 
         if (dmaCounter > 1) {

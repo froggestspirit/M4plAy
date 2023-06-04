@@ -107,8 +107,7 @@ void cgb_trigger_note(uint8_t channel){
 }
 
 
-void cgb_audio_generate(uint16_t samplesPerFrame){
-    float *outBuffer = gb.outBuffer;
+void cgb_audio_generate(uint16_t samplesPerFrame, float *outBuffer){
     switch(REG_NR11 & 0xC0){
         case 0x00:
             PU1Table = PU0;
@@ -250,9 +249,4 @@ void cgb_audio_generate(uint16_t samplesPerFrame){
         outBuffer[0] = outputL / 4.0f;
         outBuffer[1] = outputR / 4.0f;
     }
-}
-
-
-float *cgb_get_buffer(){
-    return gb.outBuffer;
 }

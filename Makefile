@@ -1,10 +1,10 @@
-C ?= i686-linux-gnu-gcc
+C ?= gcc
 
 CFLAGS := -O2 -Wall
 
 LDFLAGS := -lSDL2
 
-SRCS := src/main.c src/cgb_audio.c src/m4a.c src/m4a_tables.c src/music_player.c src/sound_mixer.c
+SRCS := src/*.c
 
 
 .PHONY: all clean

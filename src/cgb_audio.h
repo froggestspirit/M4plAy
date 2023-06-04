@@ -3,8 +3,6 @@
 #ifndef CGB_AUDIO_H
 #define CGB_AUDIO_H
 
-#define PCM_DMA_BUF_SIZE 4907
-
 struct AudioCGB{
     uint16_t ch1Freq;
     uint8_t ch1SweepCounter;
@@ -22,7 +20,6 @@ struct AudioCGB{
     uint8_t DAC[4];
     float WAVRAM[32];
     uint16_t ch4LFSR [2];
-    __attribute__((aligned(4))) float outBuffer[PCM_DMA_BUF_SIZE * 2];
 };
 
 void cgb_audio_init(uint32_t rate);
@@ -32,7 +29,6 @@ void cgb_toggle_length(uint8_t channel, uint8_t state);
 void cgb_set_length(uint8_t channel, uint8_t length);
 void cgb_set_envelope(uint8_t channel, uint8_t envelope);
 void cgb_trigger_note(uint8_t channel);
-void cgb_audio_generate(uint16_t samplesPerFrame);
-float *cgb_get_buffer();
+void cgb_audio_generate(uint16_t samplesPerFrame, float *outBuffer);
 
 #endif

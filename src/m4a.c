@@ -105,7 +105,6 @@ void m4aSoundMain(void)
 void m4aSongNumStart(uint16_t n)
 {
     const struct Song *songTable = (uintptr_t) musicData + songTableOffset;  //gSongTable;
-    // printf("songTable: %x\n", songTable);
     const struct Song *song = &songTable[n];
 
     MPlayStart(&gMPlayInfo_BGM, song->header);
@@ -114,7 +113,6 @@ void m4aSongNumStart(uint16_t n)
 void m4aSongNumStartOrChange(uint16_t n)
 {
     const struct Song *songTable = (uintptr_t) musicData + songTableOffset;  //gSongTable;
-    // printf("songTable: %x\n", songTable);
     const struct Song *song = &songTable[n];
 
     if (gMPlayInfo_BGM.songHeader != song->header)
@@ -134,7 +132,6 @@ void m4aSongNumStartOrChange(uint16_t n)
 void m4aSongNumStartOrContinue(uint16_t n)
 {
     const struct Song *songTable = (uintptr_t) musicData + songTableOffset;  //gSongTable;
-    // printf("songTable: %x\n", songTable);
     const struct Song *song = &songTable[n];
 
     if (gMPlayInfo_BGM.songHeader != song->header)
@@ -148,7 +145,6 @@ void m4aSongNumStartOrContinue(uint16_t n)
 void m4aSongNumStop(uint16_t n)
 {
     const struct Song *songTable = (uintptr_t) musicData + songTableOffset;  //gSongTable;
-    // printf("songTable: %x\n", songTable);
     const struct Song *song = &songTable[n];
 
     if (gMPlayInfo_BGM.songHeader == song->header)
@@ -158,7 +154,6 @@ void m4aSongNumStop(uint16_t n)
 void m4aSongNumContinue(uint16_t n)
 {
     const struct Song *songTable = (uintptr_t) musicData + songTableOffset;  //gSongTable;
-    // printf("songTable: %x\n", songTable);
     const struct Song *song = &songTable[n];
 
     if (gMPlayInfo_BGM.songHeader == song->header)
@@ -334,10 +329,10 @@ void SoundInit(struct SoundMixerState *soundInfo)
                    | SOUND_ALL_MIX_FULL;
     REG_SOUNDBIAS_H = (REG_SOUNDBIAS_H & 0x3F) | 0x40;
 
-    REG_DMA1SAD = (int32_t)soundInfo->outBuffer;
+    /*REG_DMA1SAD = (int32_t)soundInfo->outBuffer;
     REG_DMA1DAD = (int32_t)&REG_FIFO_A;
     REG_DMA2SAD = (int32_t)soundInfo->outBuffer + PCM_DMA_BUF_SIZE;
-    REG_DMA2DAD = (int32_t)&REG_FIFO_B;
+    REG_DMA2DAD = (int32_t)&REG_FIFO_B;*/
 
     SOUND_INFO_PTR = soundInfo;
     //CpuFill32(0, soundInfo, sizeof(struct SoundMixerState));
@@ -554,8 +549,8 @@ void MPlayOpen(struct MusicPlayerInfo *mplayInfo, struct MusicPlayerTrack *track
         mplayInfo->nextPlayer = soundInfo->firstPlayer;
     }
 
-    soundInfo->firstPlayer = (uint32_t)mplayInfo;
-    soundInfo->firstPlayerFunc = (uint32_t)MP2KPlayerMain;
+    soundInfo->firstPlayer = (uintptr_t)mplayInfo;
+    soundInfo->firstPlayerFunc = (uintptr_t)MP2KPlayerMain;
     soundInfo->lockStatus = ID_NUMBER;
     mplayInfo->lockStatus = ID_NUMBER;
 }
@@ -563,7 +558,6 @@ void MPlayOpen(struct MusicPlayerInfo *mplayInfo, struct MusicPlayerTrack *track
 void MPlayStart(struct MusicPlayerInfo *mplayInfo, struct SongHeader *songHeader)
 {
     offsetPointer(&songHeader);
-    // printf("songHeader: %x\n", songHeader);
     int32_t i;
     uint8_t checkSongPriority;
     struct MusicPlayerTrack *track;
@@ -584,7 +578,6 @@ void MPlayStart(struct MusicPlayerInfo *mplayInfo, struct SongHeader *songHeader
         mplayInfo->songHeader = songHeader;
         mplayInfo->voicegroup = songHeader->instrument;
         offsetPointer(&mplayInfo->voicegroup);
-        // printf("mplayInfo->voicegroup: %x\n", mplayInfo->voicegroup);
         mplayInfo->priority = songHeader->priority;
         mplayInfo->clock = 0;
         mplayInfo->tempoRawBPM = 150;
@@ -603,7 +596,6 @@ void MPlayStart(struct MusicPlayerInfo *mplayInfo, struct SongHeader *songHeader
             track->chan = 0;
             track->cmdPtr = songHeader->part[i];// + (uintptr_t) musicData;
             offsetPointer(&track->cmdPtr);
-            // printf("track %x: %x\n", i, track->cmdPtr);
             i++;
             track++;
         }
@@ -964,7 +956,7 @@ void cgbMixerFunc(void)
 
                     // fallthrough
                 case 2:
-                    *nrx1ptr = ((uint32_t)channels->wavePointer << 6) + channels->length;
+                    *nrx1ptr = ((uintptr_t)channels->wavePointer << 6) + channels->length;
                     goto init_env_step_time_dir;
                 case 3:
                     if (channels->wavePointer != channels->currentPointer)
@@ -987,7 +979,7 @@ void cgbMixerFunc(void)
                     break;
                 default:
                     *nrx1ptr = channels->length;
-                    *nrx3ptr = (uint32_t)channels->wavePointer << 3;
+                    *nrx3ptr = (uintptr_t)channels->wavePointer << 3;
                 init_env_step_time_dir:
                     envelopeStepTimeAndDir = channels->attack + CGB_NRx2_ENV_DIR_INC;
                     if (channels->length)
