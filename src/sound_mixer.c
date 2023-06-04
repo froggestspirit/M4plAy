@@ -1,29 +1,26 @@
 #include <stddef.h>
 #include <stdint.h>
 #include "io_reg.h"
-#include "music_player.h"
-#include "sound_mixer.h"
 #include "mp2k_common.h"
 #include "cgb_audio.h"
-
+#include "m4a_internal.h"
 
 #define VCOUNT_VBLANK 160
 #define TOTAL_SCANLINES 228
 
-extern struct SoundInfo *SOUND_INFO_PTR;
+extern struct SoundMixerState *SOUND_INFO_PTR;
 
-static inline void GenerateAudio(struct SoundMixerState *mixer, struct MixerSource *chan, struct WaveData2 *wav, float *outBuffer, uint16_t samplesPerFrame, float sampleRateReciprocal);
+static inline void GenerateAudio(struct SoundMixerState *mixer, struct SoundChannel *chan, struct WaveData *wav, float *outBuffer, uint16_t samplesPerFrame, float divFreq);
 void SampleMixer(struct SoundMixerState *mixer, uint32_t scanlineLimit, uint16_t samplesPerFrame, float *outBuffer, uint8_t dmaCounter, uint16_t maxBufSize);
-static inline uint32_t TickEnvelope(struct MixerSource *chan, struct WaveData2 *wav);
-void GeneratePokemonSampleAudio(struct SoundMixerState *mixer, struct MixerSource *chan, int8_t *current, float *outBuffer, uint16_t samplesPerFrame, float sampleRateReciprocal, int32_t samplesLeftInWav, signed envR, signed envL);
+static inline uint32_t TickEnvelope(struct SoundChannel *chan, struct WaveData *wav);
 
 void RunMixerFrame(void) {
     struct SoundMixerState *mixer = SOUND_INFO_PTR;
     
-    if (mixer->lockStatus != MIXER_UNLOCKED) {
+    if (mixer->lockStatus != PLAYER_UNLOCKED) {
         return;
     }
-    mixer->lockStatus = MIXER_LOCKED;
+    mixer->lockStatus = PLAYER_LOCKED;
     
     uint32_t maxScanlines = mixer->maxScanlines;
     if (mixer->maxScanlines != 0) {
@@ -42,16 +39,18 @@ void RunMixerFrame(void) {
     
     int32_t samplesPerFrame = mixer->samplesPerFrame;
     float *outBuffer = mixer->outBuffer;
+    float *cgbBuffer = mixer->cgbBuffer;
+    
     int32_t dmaCounter = mixer->dmaCounter;
     
     if (dmaCounter > 1) {
-        outBuffer += samplesPerFrame * (mixer->framesPerDmaCycle - (dmaCounter - 1)) * 2;
+        outBuffer += samplesPerFrame * (mixer->pcmDmaPeriod - (dmaCounter - 1)) * 2;
     }
     
     //MixerRamFunc mixerRamFunc = ((MixerRamFunc)MixerCodeBuffer);
-    SampleMixer(mixer, maxScanlines, samplesPerFrame, outBuffer, dmaCounter, MIXED_AUDIO_BUFFER_SIZE);
+    SampleMixer(mixer, maxScanlines, samplesPerFrame, outBuffer, dmaCounter, PCM_DMA_BUF_SIZE);
 
-    cgb_audio_generate(samplesPerFrame);
+    cgb_audio_generate(samplesPerFrame, cgbBuffer);
 
 }
 
@@ -62,8 +61,8 @@ void SampleMixer(struct SoundMixerState *mixer, uint32_t scanlineLimit, uint16_t
     uint32_t reverb = mixer->reverb;
     if (reverb) {
         // The vanilla reverb effect outputs a mono sound from four sources:
-        //  - L/R channels as they were mixer->framesPerDmaCycle frames ago
-        //  - L/R channels as they were (mixer->framesPerDmaCycle - 1) frames ago
+        //  - L/R channels as they were mixer->pcmDmaPeriod frames ago
+        //  - L/R channels as they were (mixer->pcmDmaPeriod - 1) frames ago
         float *tmp1 = outBuffer;
         float *tmp2;
         if (dmaCounter == 2) {
@@ -89,12 +88,12 @@ void SampleMixer(struct SoundMixerState *mixer, uint32_t scanlineLimit, uint16_t
         }
     }
     
-    float sampleRateReciprocal = mixer->sampleRateReciprocal;
+    float divFreq = mixer->divFreq;
     int_fast8_t numChans = mixer->numChans;
-    struct MixerSource *chan = mixer->chans;
+    struct SoundChannel *chan = mixer->chans;
     
     for (int i = 0; i < numChans; i++, chan++) {
-        struct WaveData2 *wav = chan->wav;
+        struct WaveData *wav = chan->wav;
         
         if (scanlineLimit != 0) {
             uint_fast16_t vcount = REG_VCOUNT;
@@ -109,16 +108,16 @@ void SampleMixer(struct SoundMixerState *mixer, uint32_t scanlineLimit, uint16_t
         if (TickEnvelope(chan, wav)) 
         {
 
-            GenerateAudio(mixer, chan, wav, outBuffer, samplesPerFrame, sampleRateReciprocal);
+            GenerateAudio(mixer, chan, wav, outBuffer, samplesPerFrame, divFreq);
         }
     }
 returnEarly:
-    mixer->lockStatus = MIXER_UNLOCKED;
+    mixer->lockStatus = PLAYER_UNLOCKED;
 }
 
 // Returns 1 if channel is still active after moving envelope forward a frame
 //__attribute__((target("thumb")))
-static inline uint32_t TickEnvelope(struct MixerSource *chan, struct WaveData2 *wav) {
+static inline uint32_t TickEnvelope(struct SoundChannel *chan, struct WaveData *wav) {
     // MP2K envelope shape
     //                                                                 |
     // (linear)^                                                       |
@@ -130,35 +129,35 @@ static inline uint32_t TickEnvelope(struct MixerSource *chan, struct WaveData2 *
     //   /                 Release (exp) ''--..|\                      |
     //  /                                        \                     |
     
-    uint8_t status = chan->status;
+    uint8_t status = chan->statusFlags;
     if ((status & 0xC7) == 0) {
         return 0;
     }
     
     uint8_t env = 0;
     if ((status & 0x80) == 0) {
-        env = chan->envelopeVol;
+        env = chan->envelopeVolume;
         
         if (status & 4) {
             // Note-wise echo
-            --chan->echoVol;
-            if (chan->echoVol <= 0) {
-                chan->status = 0;
+            --chan->echoVolume;
+            if (chan->echoVolume <= 0) {
+                chan->statusFlags = 0;
                 return 0;
             } else {
                 return 1;
             }
         } else if (status & 0x40) {
             // Release
-            chan->envelopeVol = env * chan->release / 256U;
-            uint8_t echoVol = chan->echoVol;
-            if (chan->envelopeVol > echoVol) {
+            chan->envelopeVolume = env * chan->release / 256U;
+            uint8_t echoVolume = chan->echoVolume;
+            if (chan->envelopeVolume > echoVolume) {
                 return 1;
-            } else if (echoVol == 0) {
-                chan->status = 0;
+            } else if (echoVolume == 0) {
+                chan->statusFlags = 0;
                 return 0;
             } else {
-                chan->status |= 4;
+                chan->statusFlags |= 4;
                 return 1;
             }
         }
@@ -167,31 +166,31 @@ static inline uint32_t TickEnvelope(struct MixerSource *chan, struct WaveData2 *
         uint_fast16_t newEnv;
         case 2:
             // Decay
-            chan->envelopeVol = env * chan->decay / 256U;
+            chan->envelopeVolume = env * chan->decay / 256U;
             
             uint8_t sustain = chan->sustain;
-            if (chan->envelopeVol <= sustain && sustain == 0) {
+            if (chan->envelopeVolume <= sustain && sustain == 0) {
                 // Duplicated echo check from Release section above
-                if (chan->echoVol == 0) {
-                    chan->status = 0;
+                if (chan->echoVolume == 0) {
+                    chan->statusFlags = 0;
                     return 0;
                 } else {
-                    chan->status |= 4;
+                    chan->statusFlags |= 4;
                     return 1;
                 }
-            } else if (chan->envelopeVol <= sustain) {
-                chan->envelopeVol = sustain;
-                --chan->status;
+            } else if (chan->envelopeVolume <= sustain) {
+                chan->envelopeVolume = sustain;
+                --chan->statusFlags;
             }
             break;
         case 3:
         attack:
             newEnv = env + chan->attack;
             if (newEnv > 0xFF) {
-                chan->envelopeVol = 0xFF;
-                --chan->status;
+                chan->envelopeVolume = 0xFF;
+                --chan->statusFlags;
             } else {
-                chan->envelopeVol = newEnv;
+                chan->envelopeVolume = newEnv;
             }
             break;
         case 1: // Sustain
@@ -202,188 +201,104 @@ static inline uint32_t TickEnvelope(struct MixerSource *chan, struct WaveData2 *
         return 1;
     } else if (status & 0x40) {
         // Init and stop cancel each other out
-        chan->status = 0;
+        chan->statusFlags = 0;
         return 0;
     } else {
         // Init channel
-        chan->status = 3;
-#ifdef POKEMON_EXTENSIONS
-        chan->current = wav->data + chan->ct;
-        chan->ct = wav->size - chan->ct;
-#else
-        chan->current = wav->data;
-        chan->ct = wav->size;
-#endif
+        chan->statusFlags = 3;
+        chan->currentPointer = wav->data + chan->count;
+        chan->count = wav->size - chan->count;
         chan->fw = 0;
-        chan->envelopeVol = 0;
+        chan->envelopeVolume = 0;
         if (wav->loopFlags & 0xC0) {
-            chan->status |= 0x10;
+            chan->statusFlags |= 0x10;
         }
         goto attack;
     }
 }
 
 //__attribute__((target("thumb")))
-static inline void GenerateAudio(struct SoundMixerState *mixer, struct MixerSource *chan, struct WaveData2 *wav, float *outBuffer, uint16_t samplesPerFrame, float sampleRateReciprocal) {/*, [[[]]]) {*/
-    uint_fast8_t v = chan->envelopeVol * (mixer->masterVol + 1) / 16U;
-    chan->envelopeVolR = chan->rightVol * v / 256U;
-    chan->envelopeVolL = chan->leftVol * v / 256U;
+static inline void GenerateAudio(struct SoundMixerState *mixer, struct SoundChannel *chan, struct WaveData *wav, float *outBuffer, uint16_t samplesPerFrame, float divFreq) {
+    uint_fast8_t v = chan->envelopeVolume * (mixer->masterVol + 1) / 16U;
+    chan->envelopeVolumeRight = chan->rightVolume * v / 256U;
+    chan->envelopeVolumeLeft = chan->leftVolume * v / 256U;
     
     int32_t loopLen = 0;
     int8_t *loopStart;
-    if (chan->status & 0x10) {
+    if (chan->statusFlags & 0x10) {
         loopStart = wav->data + wav->loopStart;
         loopLen = wav->size - wav->loopStart;
     }
-    int32_t samplesLeftInWav = chan->ct;
-    int8_t *current = chan->current;
-    signed envR = chan->envelopeVolR;
-    signed envL = chan->envelopeVolL;
-#ifdef POKEMON_EXTENSIONS
-    if (chan->type & 0x30) {
-        GeneratePokemonSampleAudio(mixer, chan, current, outBuffer, samplesPerFrame, sampleRateReciprocal, samplesLeftInWav, envR, envL);
-    }
-    else
-#endif
-    if (chan->type & 8) {
+    int32_t samplesLeftInWav = chan->count;
+    int8_t *currentPointer = chan->currentPointer;
+    signed envR = chan->envelopeVolumeRight;
+    signed envL = chan->envelopeVolumeLeft;
+    /*if (chan->type & 8) {
         for (uint16_t i = 0; i < samplesPerFrame; i++, outBuffer+=2) {
-            int_fast8_t c = *(current++);
+            int_fast8_t c = *(currentPointer++);
             
             outBuffer[1] += (c * envR) / 32768.0f;
             outBuffer[0] += (c * envL) / 32768.0f;
             if (--samplesLeftInWav == 0) {
                 samplesLeftInWav = loopLen;
                 if (loopLen != 0) {
-                    current = loopStart;
+                    currentPointer = loopStart;
                 } else {
-                    chan->status = 0;
+                    chan->statusFlags = 0;
                     return;
                 }
             }
         }
         
-        chan->ct = samplesLeftInWav;
-        chan->current = current;
-    } else {
-        float finePos = chan->fw;
-        float romSamplesPerOutputSample = chan->freq * sampleRateReciprocal;
-
-        int_fast16_t b = current[0];
-        int_fast16_t m = current[1] - b;
-        current += 1;
-        
-        for (uint16_t i = 0; i < samplesPerFrame; i++, outBuffer+=2) {
-            // Use linear interpolation to calculate a value between the current sample in the wav
-            // and the next sample. Also cancel out the 9.23 stuff
-            float sample = (finePos * m) + b;
-            
-            outBuffer[1] += (sample * envR) / 32768.0f;
-            outBuffer[0] += (sample * envL) / 32768.0f;
-            
-            finePos += romSamplesPerOutputSample;
-            uint32_t newCoarsePos = finePos;
-            if (newCoarsePos != 0) {
-                finePos -= (int)finePos;
-                samplesLeftInWav -= newCoarsePos;
-                if (samplesLeftInWav <= 0) {
-                    if (loopLen != 0) {
-                        current = loopStart;
-                        newCoarsePos = -samplesLeftInWav;
-                        samplesLeftInWav += loopLen;
-                        while (samplesLeftInWav <= 0) {
-                            newCoarsePos -= loopLen;
-                            samplesLeftInWav += loopLen;
-                        }
-                        b = current[newCoarsePos];
-                        m = current[newCoarsePos + 1] - b;
-                        current += newCoarsePos + 1;
-                    } else {
-                        chan->status = 0;
-                        return;
-                    }
-                } else {
-                    b = current[newCoarsePos - 1];
-                    m = current[newCoarsePos] - b;
-                    current += newCoarsePos;
-                }
-            }
-        }
-        
-        chan->fw = finePos;
-        chan->ct = samplesLeftInWav;
-        chan->current = current - 1;
-    }
-}
-
-struct WaveData
-{
-    uint16_t type;
-    uint16_t status;
-    uint32_t freq;
-    uint32_t loopStart;
-    uint32_t size; // number of samples
-    int8_t data[1]; // samples
-};
-
-void GeneratePokemonSampleAudio(struct SoundMixerState *mixer, struct MixerSource *chan, int8_t *current, float *outBuffer, uint16_t samplesPerFrame, float sampleRateReciprocal, int32_t samplesLeftInWav, signed envR, signed envL) {
-    struct WaveData *wav = chan->wav; // r6
+        chan->count = samplesLeftInWav;
+        chan->currentPointer = currentPointer;
+    } else {*/
     float finePos = chan->fw;
-    if((chan->status & 0x20) == 0) {
-        chan->status |= 0x20;
-        if(chan->type & 0x10) {
-            int8_t *waveEnd = wav->data + wav->size;
-            current = wav->data + (waveEnd - current);
-            chan->current = current;
-        }
-        if(wav->type != 0) {
-            current -= (uintptr_t)&wav->data;
-            chan->current = current;
-        }
-    }
-    float romSamplesPerOutputSample = chan->type & 8 ? 1.0f : chan->freq * sampleRateReciprocal;
-    if(wav->type != 0) { // is compressed
-        chan->extra1 = 0;
-        chan->extra2 = 0xFF00;
-        if(chan->type & 0x20) {
+    float romSamplesPerOutputSample = chan->freq * divFreq;
 
-        }
-        else {
-
-        } 
-        //TODO: implement compression
-    }
-    else {
-        if(chan->type & 0x10) {
-            current -= 1;
-            int_fast16_t b = current[0];
-            int_fast16_t m = current[-1] - b;
-            
-            for (uint16_t i = 0; i < samplesPerFrame; i++, outBuffer+=2) {
-                float sample = (finePos * m) + b;
-                
-                outBuffer[1] += (sample * envR) / 32768.0f;
-                outBuffer[0] += (sample * envL) / 32768.0f;
-                
-                finePos += romSamplesPerOutputSample;
-                int newCoarsePos = finePos;
-                if (newCoarsePos != 0) {
-                    finePos -= (int)finePos;
-                    samplesLeftInWav -= newCoarsePos;
-                    if (samplesLeftInWav <= 0) {
-                        chan->status = 0;
-                        break;
+    int_fast16_t b = currentPointer[0];
+    int_fast16_t m = currentPointer[1] - b;
+    currentPointer += 1;
+    
+    for (uint16_t i = 0; i < samplesPerFrame; i++, outBuffer+=2) {
+        // Use linear interpolation to calculate a value between the currentPointer sample in the wav
+        // and the nextChannelPointer sample. Also cancel out the 9.23 stuff
+        float sample = (finePos * m) + b;
+        
+        outBuffer[1] += (sample * envR) / 32768.0f;
+        outBuffer[0] += (sample * envL) / 32768.0f;
+        
+        finePos += romSamplesPerOutputSample;
+        uint32_t newCoarsePos = finePos;
+        if (newCoarsePos != 0) {
+            finePos -= (int)finePos;
+            samplesLeftInWav -= newCoarsePos;
+            if (samplesLeftInWav <= 0) {
+                if (loopLen != 0) {
+                    currentPointer = loopStart;
+                    newCoarsePos = -samplesLeftInWav;
+                    samplesLeftInWav += loopLen;
+                    while (samplesLeftInWav <= 0) {
+                        newCoarsePos -= loopLen;
+                        samplesLeftInWav += loopLen;
                     }
-                    else {
-                        current -= newCoarsePos;
-                        b = current[0];
-                        m = current[-1] - b;
-                    }
+                    b = currentPointer[newCoarsePos];
+                    m = currentPointer[newCoarsePos + 1] - b;
+                    currentPointer += newCoarsePos + 1;
+                } else {
+                    chan->statusFlags = 0;
+                    return;
                 }
+            } else {
+                b = currentPointer[newCoarsePos - 1];
+                m = currentPointer[newCoarsePos] - b;
+                currentPointer += newCoarsePos;
             }
-            
-            chan->fw = finePos;
-            chan->ct = samplesLeftInWav;
-            chan->current = current + 1;
         }
     }
+    
+    chan->fw = finePos;
+    chan->count = samplesLeftInWav;
+    chan->currentPointer = currentPointer - 1;
+    //}
 }
