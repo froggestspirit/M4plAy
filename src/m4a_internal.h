@@ -6,6 +6,9 @@
 // ASCII encoding of 'Smsh' in reverse
 // This is presumably short for SMASH, the developer of MKS4AGB.
 #define ID_NUMBER 0x68736D53
+#define PLAYER_UNLOCKED ID_NUMBER
+#define PLAYER_LOCKED PLAYER_UNLOCKED+1
+
 
 #define C_V 0x40 // center value for PAN, BEND, and TUNE
 
@@ -39,7 +42,8 @@
 struct WaveData
 {
     uint16_t type;
-    uint16_t status;
+    uint8_t padding;
+    uint8_t loopFlags;
     uint32_t freq;
     uint32_t loopStart;
     uint32_t size; // number of samples

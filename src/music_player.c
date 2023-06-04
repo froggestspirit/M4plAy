@@ -1,14 +1,13 @@
 #include <stddef.h>
 #include <stdint.h>
 #include "mp2k_common.h"
-#include "music_player.h"
 #include "m4a_internal.h"
 
 // Don't uncomment this. vvvvv
 // #define POKEMON_EXTENSIONS
 #define PCM_DMA_BUF_SIZE 4907
 
-static uint32_t MidiKeyToFreq(struct WaveData2 *wav, uint8_t key, uint8_t pitch);
+static uint32_t MidiKeyToFreq(struct WaveData *wav, uint8_t key, uint8_t pitch);
 extern void * const gMPlayJumpTableTemplate[];
 extern const uint8_t gScaleTable[];
 extern const uint32_t gFreqTable[];
@@ -75,8 +74,8 @@ static uint32_t *SafeDereferenceU32Ptr(uint32_t **addr) {
     return ret;
 }
 
-static struct WaveData2 *SafeDereferenceWavDataPtr(struct WaveData2 **addr) {
-    struct WaveData2 *ret = *addr;
+static struct WaveData *SafeDereferenceWavDataPtr(struct WaveData **addr) {
+    struct WaveData *ret = *addr;
     VERIFY_PTR(addr);
     return ret;
 }
@@ -675,7 +674,7 @@ void m4aSoundVSync(void)
 // Out:
 // - The freq in Hz at which the sample should be played back.
 
-uint32_t MidiKeyToFreq(struct WaveData2 *wav, uint8_t key, uint8_t pitch) {
+uint32_t MidiKeyToFreq(struct WaveData *wav, uint8_t key, uint8_t pitch) {
     if (key > 178) {
         key = 178;
         pitch = 255;

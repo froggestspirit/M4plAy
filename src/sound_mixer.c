@@ -1,30 +1,27 @@
 #include <stddef.h>
 #include <stdint.h>
 #include "io_reg.h"
-#include "music_player.h"
 #include "mp2k_common.h"
 #include "cgb_audio.h"
 #include "m4a_internal.h"
 
-#define MIXER_UNLOCKED 0x68736D53
-#define MIXER_LOCKED PLAYER_UNLOCKED+1
 #define VCOUNT_VBLANK 160
 #define TOTAL_SCANLINES 228
 
 extern struct SoundMixerState *SOUND_INFO_PTR;
 
-static inline void GenerateAudio(struct SoundMixerState *mixer, struct SoundChannel *chan, struct WaveData2 *wav, float *outBuffer, uint16_t samplesPerFrame, float divFreq);
+static inline void GenerateAudio(struct SoundMixerState *mixer, struct SoundChannel *chan, struct WaveData *wav, float *outBuffer, uint16_t samplesPerFrame, float divFreq);
 void SampleMixer(struct SoundMixerState *mixer, uint32_t scanlineLimit, uint16_t samplesPerFrame, float *outBuffer, uint8_t dmaCounter, uint16_t maxBufSize);
-static inline uint32_t TickEnvelope(struct SoundChannel *chan, struct WaveData2 *wav);
+static inline uint32_t TickEnvelope(struct SoundChannel *chan, struct WaveData *wav);
 void GeneratePokemonSampleAudio(struct SoundMixerState *mixer, struct SoundChannel *chan, int8_t *currentPointer, float *outBuffer, uint16_t samplesPerFrame, float divFreq, int32_t samplesLeftInWav, signed envR, signed envL);
 
 void RunMixerFrame(void) {
     struct SoundMixerState *mixer = SOUND_INFO_PTR;
     
-    if (mixer->lockStatus != MIXER_UNLOCKED) {
+    if (mixer->lockStatus != PLAYER_UNLOCKED) {
         return;
     }
-    mixer->lockStatus = MIXER_LOCKED;
+    mixer->lockStatus = PLAYER_LOCKED;
     
     uint32_t maxScanlines = mixer->maxScanlines;
     if (mixer->maxScanlines != 0) {
@@ -95,7 +92,7 @@ void SampleMixer(struct SoundMixerState *mixer, uint32_t scanlineLimit, uint16_t
     struct SoundChannel *chan = mixer->chans;
     
     for (int i = 0; i < numChans; i++, chan++) {
-        struct WaveData2 *wav = chan->wav;
+        struct WaveData *wav = chan->wav;
         
         if (scanlineLimit != 0) {
             uint_fast16_t vcount = REG_VCOUNT;
@@ -114,12 +111,12 @@ void SampleMixer(struct SoundMixerState *mixer, uint32_t scanlineLimit, uint16_t
         }
     }
 returnEarly:
-    mixer->lockStatus = MIXER_UNLOCKED;
+    mixer->lockStatus = PLAYER_UNLOCKED;
 }
 
 // Returns 1 if channel is still active after moving envelope forward a frame
 //__attribute__((target("thumb")))
-static inline uint32_t TickEnvelope(struct SoundChannel *chan, struct WaveData2 *wav) {
+static inline uint32_t TickEnvelope(struct SoundChannel *chan, struct WaveData *wav) {
     // MP2K envelope shape
     //                                                                 |
     // (linear)^                                                       |
@@ -225,7 +222,7 @@ static inline uint32_t TickEnvelope(struct SoundChannel *chan, struct WaveData2 
 }
 
 //__attribute__((target("thumb")))
-static inline void GenerateAudio(struct SoundMixerState *mixer, struct SoundChannel *chan, struct WaveData2 *wav, float *outBuffer, uint16_t samplesPerFrame, float divFreq) {/*, [[[]]]) {*/
+static inline void GenerateAudio(struct SoundMixerState *mixer, struct SoundChannel *chan, struct WaveData *wav, float *outBuffer, uint16_t samplesPerFrame, float divFreq) {/*, [[[]]]) {*/
     uint_fast8_t v = chan->envelopeVolume * (mixer->masterVol + 1) / 16U;
     chan->envelopeVolumeRight = chan->rightVolume * v / 256U;
     chan->envelopeVolumeLeft = chan->leftVolume * v / 256U;
