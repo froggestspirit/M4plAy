@@ -10,7 +10,6 @@ extern void * const gMPlayJumpTableTemplate[];
 extern const uint8_t gScaleTable[];
 extern const uint32_t gFreqTable[];
 extern const uint8_t gClockTable[];
-float audioBuffer [PCM_DMA_BUF_SIZE];
 extern struct SoundMixerState *SOUND_INFO_PTR;
 uint32_t umul3232H32(uint32_t a, uint32_t b) {
     uint64_t result = a;
@@ -635,25 +634,7 @@ void MP2K_event_mod(struct MusicPlayerInfo *unused, struct MusicPlayerTrack *tra
 
 void m4aSoundVSync(void)
 {
-    struct SoundMixerState *mixer = SOUND_INFO_PTR;
-    if(mixer->lockStatus-PLAYER_UNLOCKED <= 1)
-    {
-        int32_t samplesPerFrame = mixer->samplesPerFrame * 2;
-        float *m4aBuffer = mixer->outBuffer;
-        float *cgbBuffer = mixer->cgbBuffer;
-        int32_t dmaCounter = mixer->dmaCounter;
 
-        if (dmaCounter > 1) {
-            m4aBuffer += samplesPerFrame * (mixer->pcmDmaPeriod - (dmaCounter - 1));
-        }
-
-        for(uint32_t i = 0; i < samplesPerFrame; i++)  // TODO for 64-bit builds
-            audioBuffer[i] = m4aBuffer[i] + cgbBuffer[i];
-
-        SDL_QueueAudio(1, audioBuffer, samplesPerFrame * 4);
-        if((int8_t)(--mixer->dmaCounter) <= 0)
-            mixer->dmaCounter = mixer->pcmDmaPeriod;
-    }
 }
 
 #if 0

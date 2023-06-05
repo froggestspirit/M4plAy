@@ -14,30 +14,36 @@ static inline void GenerateAudio(struct SoundMixerState *mixer, struct SoundChan
 void SampleMixer(struct SoundMixerState *mixer, uint32_t scanlineLimit, uint16_t samplesPerFrame, float *outBuffer, uint8_t dmaCounter, uint16_t maxBufSize);
 static inline uint32_t TickEnvelope(struct SoundChannel *chan, struct WaveData *wav);
 
-void RunMixerFrame(void) {
+
+uint8_t RunMixerFrame(void *audioBuffer, int32_t samplesPerFrame) {
     struct SoundMixerState *mixer = SOUND_INFO_PTR;
+
+    static float playerCounter = 0;
     
     if (mixer->lockStatus != PLAYER_UNLOCKED) {
-        return;
+        return 0;
     }
     mixer->lockStatus = PLAYER_LOCKED;
     
-    uint32_t maxScanlines = mixer->maxScanlines;
-    if (mixer->maxScanlines != 0) {
-        uint32_t vcount = REG_VCOUNT;
-        maxScanlines += vcount;
-        if (vcount < VCOUNT_VBLANK) {
-            maxScanlines += TOTAL_SCANLINES;
+    playerCounter += samplesPerFrame;
+    while (playerCounter >= mixer->samplesPerFrame) {
+        playerCounter -= mixer->samplesPerFrame;
+        uint32_t maxScanlines = mixer->maxScanlines;
+        if (mixer->maxScanlines != 0) {
+            uint32_t vcount = REG_VCOUNT;
+            maxScanlines += vcount;
+            if (vcount < VCOUNT_VBLANK) {
+                maxScanlines += TOTAL_SCANLINES;
+            }
         }
+        
+        if (mixer->firstPlayerFunc != NULL) {
+            mixer->firstPlayerFunc(mixer->firstPlayer);
+        }
+        
+        mixer->cgbMixerFunc();
     }
-    
-    if (mixer->firstPlayerFunc != NULL) {
-        mixer->firstPlayerFunc(mixer->firstPlayer);
-    }
-    
-    mixer->cgbMixerFunc();
-    
-    int32_t samplesPerFrame = mixer->samplesPerFrame;
+    samplesPerFrame = mixer->samplesPerFrame;
     float *outBuffer = mixer->outBuffer;
     float *cgbBuffer = mixer->cgbBuffer;
     
@@ -48,10 +54,32 @@ void RunMixerFrame(void) {
     }
     
     //MixerRamFunc mixerRamFunc = ((MixerRamFunc)MixerCodeBuffer);
-    SampleMixer(mixer, maxScanlines, samplesPerFrame, outBuffer, dmaCounter, PCM_DMA_BUF_SIZE);
+    SampleMixer(mixer, 0, samplesPerFrame, outBuffer, dmaCounter, PCM_DMA_BUF_SIZE);
 
     cgb_audio_generate(samplesPerFrame, cgbBuffer);
 
+    //struct SoundMixerState *mixer = SOUND_INFO_PTR;
+    if(mixer->lockStatus-PLAYER_UNLOCKED <= 1)
+    {
+        samplesPerFrame = mixer->samplesPerFrame * 2;
+        float *m4aBuffer = mixer->outBuffer;
+        float *cgbBuffer = mixer->cgbBuffer;
+        int32_t dmaCounter = mixer->dmaCounter;
+
+        if (dmaCounter > 1) {
+            m4aBuffer += samplesPerFrame * (mixer->pcmDmaPeriod - (dmaCounter - 1));
+        }
+
+        float *outBuf = audioBuffer;
+        for(uint32_t i = 0; i < samplesPerFrame; i++)
+            outBuf[i] = m4aBuffer[i] + cgbBuffer[i];
+
+        if((int8_t)(--mixer->dmaCounter) <= 0)
+            mixer->dmaCounter = mixer->pcmDmaPeriod;
+        
+        return 1;
+    }
+    return 0;
 }
 
 
