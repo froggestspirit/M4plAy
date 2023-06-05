@@ -9,8 +9,8 @@ uint32_t songTableOffset;
 
 extern const uint8_t gCgb3Vol[];
 
-extern struct SoundMixerState *SOUND_INFO_PTR;
-
+struct SoundMixerState *SOUND_INFO_PTR;
+unsigned char REG_BASE[0x400] __attribute__ ((aligned (4)));
 struct SoundMixerState gSoundInfo;
 MPlayFunc gMPlayJumpTable[36];
 struct CgbChannel gCgbChans[4];
@@ -75,7 +75,7 @@ void MPlayFadeOut(struct MusicPlayerInfo *mplayInfo, uint16_t speed)
     }
 }
 
-void m4aSoundInit(uint8_t *_music, uint32_t _songTableAddress)
+void m4aSoundInit(uint32_t freq, uint8_t *_music, uint32_t _songTableAddress)
 {
     musicData = _music;
     songTableOffset = _songTableAddress;
@@ -95,6 +95,7 @@ void m4aSoundInit(uint8_t *_music, uint32_t _songTableAddress)
         mplayInfo->checkSongPriority = 0;
         mplayInfo->memAccArea = gMPlayMemAccArea;
     }
+    cgb_audio_init(freq);
 }
 
 void m4aSoundMain(void)

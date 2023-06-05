@@ -1,5 +1,5 @@
 M4A player based on the pokeemerald pc port
 
-example requires sdl2
+example requires libportaudio (portaudio-19 on linux)
 
-usage: M4plAy [rom] [song table offset] [song number]
+usage: M4plAy123 [rom] [song table offset] [song number]

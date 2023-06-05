@@ -1,19 +1,29 @@
 C ?= gcc
+CFLAGS := -Wall
+AR := ar
 
-CFLAGS := -O2 -Wall
+LDFLAGS := -lm -lportaudio -L./ -lm4play
 
-LDFLAGS := -lSDL2
+LIB_SRCS := src/*.c
 
-SRCS := src/*.c
+SRCS := main.cpp
 
+HEADERS := m4play.h
 
 .PHONY: all clean
 
-all: M4plAy
+all: libm4play.a M4plAy123 tidy
 	@:
 
-M4plAy: $(SRCS)
-	$(C) $(CFLAGS) $(SRCS) -o $@ $(LDFLAGS)
+libm4play.a: $(LIB_SRCS)
+	$(C) $(CFLAGS) $(LIB_SRCS) -c
+	$(AR) -cvq libm4play.a *.o
+
+M4plAy123: $(SRCS) $(HEADERS)
+	g++ $(CFLAGS) $(SRCS) -o $@ $(LDFLAGS)
+
+tidy:
+	$(RM) *.o
 
 clean:
-	$(RM) M4plAy M4plAy.exe
+	$(RM) M4plAy123 M4plAy123.exe libm4play.a *.o
