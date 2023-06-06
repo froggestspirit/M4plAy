@@ -1,6 +1,5 @@
 #include <stddef.h>
 #include <stdint.h>
-#include "io_reg.h"
 #include "mp2k_common.h"
 #include "cgb_audio.h"
 #include "m4a_internal.h"
@@ -29,13 +28,6 @@ uint8_t RunMixerFrame(void *audioBuffer, int32_t samplesPerFrame) {
     while (playerCounter >= mixer->samplesPerFrame) {
         playerCounter -= mixer->samplesPerFrame;
         uint32_t maxScanlines = mixer->maxScanlines;
-        if (mixer->maxScanlines != 0) {
-            uint32_t vcount = REG_VCOUNT;
-            maxScanlines += vcount;
-            if (vcount < VCOUNT_VBLANK) {
-                maxScanlines += TOTAL_SCANLINES;
-            }
-        }
         
         if (mixer->firstPlayerFunc != NULL) {
             mixer->firstPlayerFunc(mixer->firstPlayer);
@@ -122,16 +114,6 @@ void SampleMixer(struct SoundMixerState *mixer, uint32_t scanlineLimit, uint16_t
     
     for (int i = 0; i < numChans; i++, chan++) {
         struct WaveData *wav = chan->wav;
-        
-        if (scanlineLimit != 0) {
-            uint_fast16_t vcount = REG_VCOUNT;
-            if (vcount < VCOUNT_VBLANK) {
-                vcount += TOTAL_SCANLINES;
-            }
-            if (vcount >= scanlineLimit) {
-                goto returnEarly;
-            }
-        }
         
         if (TickEnvelope(chan, wav)) 
         {

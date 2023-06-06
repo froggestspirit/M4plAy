@@ -1,7 +1,6 @@
 #include <stdint.h>
 #include <string.h>
 #include "m4a_internal.h"
-#include "io_reg.h"
 #include "cgb_audio.h"
 
 uint8_t *musicData;
@@ -10,7 +9,6 @@ uint32_t songTableOffset;
 extern const uint8_t gCgb3Vol[];
 
 struct SoundMixerState *SOUND_INFO_PTR;
-unsigned char REG_BASE[0x400] __attribute__ ((aligned (4)));
 struct SoundMixerState gSoundInfo;
 MPlayFunc gMPlayJumpTable[36];
 struct CgbChannel gCgbChans[4];
@@ -238,23 +236,25 @@ void m4aMPlayImmInit(struct MusicPlayerInfo *mplayInfo)
 
 void MPlayExtender(struct CgbChannel *cgbChans)
 {
-    struct SoundMixerState *soundInfo;
+    struct SoundMixerState *soundInfo = SOUND_INFO_PTR;
+
     uint32_t lockStatus;
 
-    REG_SOUNDCNT_X = SOUND_MASTER_ENABLE
+    soundInfo->reg.NR50 = 0; // set master volume to zero
+    soundInfo->reg.NR51 = 0; // set master volume to zero
+    soundInfo->reg.NR52 = SOUND_MASTER_ENABLE
                    | SOUND_4_ON
                    | SOUND_3_ON
                    | SOUND_2_ON
                    | SOUND_1_ON;
-    REG_SOUNDCNT_L = 0; // set master volume to zero
-    REG_NR12 = 0x8;
-    REG_NR22 = 0x8;
-    REG_NR42 = 0x8;
-    REG_NR14 = 0x80;
-    REG_NR24 = 0x80;
-    REG_NR44 = 0x80;
-    REG_NR30 = 0;
-    REG_NR50 = 0x77;
+    soundInfo->reg.NR12 = 0x8;
+    soundInfo->reg.NR22 = 0x8;
+    soundInfo->reg.NR42 = 0x8;
+    soundInfo->reg.NR14 = 0x80;
+    soundInfo->reg.NR24 = 0x80;
+    soundInfo->reg.NR44 = 0x80;
+    soundInfo->reg.NR30 = 0;
+    soundInfo->reg.NR50 = 0x77;
 
 
     for(uint8_t i = 0; i < 4; i++){
@@ -262,7 +262,6 @@ void MPlayExtender(struct CgbChannel *cgbChans)
         cgb_trigger_note(i);
     }
 
-    soundInfo = SOUND_INFO_PTR;
 
     lockStatus = soundInfo->lockStatus;
 
@@ -312,28 +311,15 @@ void SoundInit(struct SoundMixerState *soundInfo)
 {
     soundInfo->lockStatus = 0;
 
-    if (REG_DMA1CNT & (DMA_REPEAT << 16))
-        REG_DMA1CNT = ((DMA_ENABLE | DMA_START_NOW | DMA_32BIT | DMA_SRC_INC | DMA_DEST_FIXED) << 16) | 4;
-
-    if (REG_DMA2CNT & (DMA_REPEAT << 16))
-        REG_DMA2CNT = ((DMA_ENABLE | DMA_START_NOW | DMA_32BIT | DMA_SRC_INC | DMA_DEST_FIXED) << 16) | 4;
-
-    REG_DMA1CNT_H = DMA_32BIT;
-    REG_DMA2CNT_H = DMA_32BIT;
-    REG_SOUNDCNT_X = SOUND_MASTER_ENABLE
+    soundInfo->reg.NR52 = SOUND_MASTER_ENABLE
                    | SOUND_4_ON
                    | SOUND_3_ON
                    | SOUND_2_ON
                    | SOUND_1_ON;
-    REG_SOUNDCNT_H = SOUND_B_FIFO_RESET | SOUND_B_TIMER_0 | SOUND_B_LEFT_OUTPUT
+    soundInfo->reg.SOUNDCNT_H = SOUND_B_FIFO_RESET | SOUND_B_TIMER_0 | SOUND_B_LEFT_OUTPUT
                    | SOUND_A_FIFO_RESET | SOUND_A_TIMER_0 | SOUND_A_RIGHT_OUTPUT
                    | SOUND_ALL_MIX_FULL;
-    REG_SOUNDBIAS_H = (REG_SOUNDBIAS_H & 0x3F) | 0x40;
-
-    /*REG_DMA1SAD = (int32_t)soundInfo->outBuffer;
-    REG_DMA1DAD = (int32_t)&REG_FIFO_A;
-    REG_DMA2SAD = (int32_t)soundInfo->outBuffer + PCM_DMA_BUF_SIZE;
-    REG_DMA2DAD = (int32_t)&REG_FIFO_B;*/
+    soundInfo->reg.SOUNDBIAS_H = (soundInfo->reg.SOUNDBIAS_H & 0x3F) | 0x40;
 
     SOUND_INFO_PTR = soundInfo;
     //CpuFill32(0, soundInfo, sizeof(struct SoundMixerState));
@@ -370,15 +356,7 @@ void SampleFreqSet(uint32_t freq)
 
     soundInfo->divFreq = 1.0f / soundInfo->sampleRate;
 
-    // Turn off timer 0.
-    REG_TM0CNT_H = 0;
-
-    // cycles per LCD fresh 280896
-    REG_TM0CNT_L = -(280896 / soundInfo->samplesPerFrame);
-
     m4aSoundVSyncOn();
-
-    REG_TM0CNT_H = TIMER_ENABLE | TIMER_1CLK;
 }
 
 void m4aSoundMode(uint32_t mode)
@@ -402,8 +380,11 @@ void m4aSoundMode(uint32_t mode)
     {
         struct SoundChannel *chan;
 
-        soundInfo->numChans = temp >> SOUND_MODE_MAXCHN_SHIFT;
-
+        // The following line is a fix, not sure how accurate it's supposed to be?
+        soundInfo->numChans = MAX_DIRECTSOUND_CHANNELS;
+        // The following line is the old code, possibly bugged?
+        //soundInfo->numChans = temp >> SOUND_MODE_MAXCHN_SHIFT;
+        
         temp = MAX_DIRECTSOUND_CHANNELS;
         chan = &soundInfo->chans[0];
 
@@ -425,7 +406,7 @@ void m4aSoundMode(uint32_t mode)
     if (temp)
     {
         temp = (temp & 0x300000) >> 14;
-        REG_SOUNDBIAS_H = (REG_SOUNDBIAS_H & 0x3F) | temp;
+        soundInfo->reg.SOUNDBIAS_H = (soundInfo->reg.SOUNDBIAS_H & 0x3F) | temp;
     }
 
     temp = mode & SOUND_MODE_FREQ;
@@ -486,15 +467,6 @@ void m4aSoundVSyncOff(void)
     {
         soundInfo->lockStatus += 10;
 
-        if (REG_DMA1CNT & (DMA_REPEAT << 16))
-            REG_DMA1CNT = ((DMA_ENABLE | DMA_START_NOW | DMA_32BIT | DMA_SRC_INC | DMA_DEST_FIXED) << 16) | 4;
-
-        if (REG_DMA2CNT & (DMA_REPEAT << 16))
-            REG_DMA2CNT = ((DMA_ENABLE | DMA_START_NOW | DMA_32BIT | DMA_SRC_INC | DMA_DEST_FIXED) << 16) | 4;
-
-        REG_DMA1CNT_H = DMA_32BIT;
-        REG_DMA2CNT_H = DMA_32BIT;
-
         //CpuFill32(0, soundInfo->outBuffer, sizeof(soundInfo->outBuffer));
     }
 }
@@ -507,8 +479,6 @@ void m4aSoundVSyncOn(void)
     if (lockStatus == ID_NUMBER)
         return;
 
-    REG_DMA1CNT_H = DMA_ENABLE | DMA_START_SPECIAL | DMA_32BIT | DMA_REPEAT;
-    REG_DMA2CNT_H = DMA_ENABLE | DMA_START_SPECIAL | DMA_32BIT | DMA_REPEAT;
 
     soundInfo->dmaCounter = 0;
     soundInfo->lockStatus = lockStatus - 10;
@@ -516,15 +486,13 @@ void m4aSoundVSyncOn(void)
 
 void MPlayOpen(struct MusicPlayerInfo *mplayInfo, struct MusicPlayerTrack *tracks, uint8_t trackCount)
 {
-    struct SoundMixerState *soundInfo;
+    struct SoundMixerState *soundInfo = SOUND_INFO_PTR;
 
     if (trackCount == 0)
         return;
 
     if (trackCount > MAX_MUSICPLAYER_TRACKS)
         trackCount = MAX_MUSICPLAYER_TRACKS;
-
-    soundInfo = SOUND_INFO_PTR;
 
     if (soundInfo->lockStatus != ID_NUMBER)
         return;
@@ -807,22 +775,24 @@ uint32_t cgbCalcFreqFunc(uint8_t chanNum, uint8_t key, uint8_t fineAdjust)
 
 void cgbNoteOffFunc(uint8_t chanNum)
 {
+    struct SoundMixerState *soundInfo = SOUND_INFO_PTR;
+
     switch (chanNum)
     {
     case 1:
-        REG_NR12 = 8;
-        REG_NR14 = 0x80;
+        soundInfo->reg.NR12 = 8;
+        soundInfo->reg.NR14 = 0x80;
         break;
     case 2:
-        REG_NR22 = 8;
-        REG_NR24 = 0x80;
+        soundInfo->reg.NR22 = 8;
+        soundInfo->reg.NR24 = 0x80;
         break;
     case 3:
-        REG_NR30 = 0;
+        soundInfo->reg.NR30 = 0;
         break;
     default:
-        REG_NR42 = 8;
-        REG_NR44 = 0x80;
+        soundInfo->reg.NR42 = 8;
+        soundInfo->reg.NR44 = 0x80;
     }
 
     cgb_set_envelope(chanNum - 1, 8);
@@ -909,32 +879,32 @@ void cgbMixerFunc(void)
         switch (ch)
         {
         case 1:
-            nrx0ptr = (volatile uint8_t *)(REG_ADDR_NR10);
-            nrx1ptr = (volatile uint8_t *)(REG_ADDR_NR11);
-            nrx2ptr = (volatile uint8_t *)(REG_ADDR_NR12);
-            nrx3ptr = (volatile uint8_t *)(REG_ADDR_NR13);
-            nrx4ptr = (volatile uint8_t *)(REG_ADDR_NR14);
+            nrx0ptr = &soundInfo->reg.NR10;
+            nrx1ptr = &soundInfo->reg.NR11;
+            nrx2ptr = &soundInfo->reg.NR12;
+            nrx3ptr = &soundInfo->reg.NR13;
+            nrx4ptr = &soundInfo->reg.NR14;
             break;
         case 2:
-            nrx0ptr = (volatile uint8_t *)(REG_ADDR_NR10+1);
-            nrx1ptr = (volatile uint8_t *)(REG_ADDR_NR21);
-            nrx2ptr = (volatile uint8_t *)(REG_ADDR_NR22);
-            nrx3ptr = (volatile uint8_t *)(REG_ADDR_NR23);
-            nrx4ptr = (volatile uint8_t *)(REG_ADDR_NR24);
+            nrx0ptr = &soundInfo->reg.NR10x;
+            nrx1ptr = &soundInfo->reg.NR21;
+            nrx2ptr = &soundInfo->reg.NR22;
+            nrx3ptr = &soundInfo->reg.NR23;
+            nrx4ptr = &soundInfo->reg.NR24;
             break;
         case 3:
-            nrx0ptr = (volatile uint8_t *)(REG_ADDR_NR30);
-            nrx1ptr = (volatile uint8_t *)(REG_ADDR_NR31);
-            nrx2ptr = (volatile uint8_t *)(REG_ADDR_NR32);
-            nrx3ptr = (volatile uint8_t *)(REG_ADDR_NR33);
-            nrx4ptr = (volatile uint8_t *)(REG_ADDR_NR34);
+            nrx0ptr = &soundInfo->reg.NR30;
+            nrx1ptr = &soundInfo->reg.NR31;
+            nrx2ptr = &soundInfo->reg.NR32;
+            nrx3ptr = &soundInfo->reg.NR33;
+            nrx4ptr = &soundInfo->reg.NR34;
             break;
         default:
-            nrx0ptr = (volatile uint8_t *)(REG_ADDR_NR30+1);
-            nrx1ptr = (volatile uint8_t *)(REG_ADDR_NR41);
-            nrx2ptr = (volatile uint8_t *)(REG_ADDR_NR42);
-            nrx3ptr = (volatile uint8_t *)(REG_ADDR_NR43);
-            nrx4ptr = (volatile uint8_t *)(REG_ADDR_NR44);
+            nrx0ptr = &soundInfo->reg.NR30x;
+            nrx1ptr = &soundInfo->reg.NR41;
+            nrx2ptr = &soundInfo->reg.NR42;
+            nrx3ptr = &soundInfo->reg.NR43;
+            nrx4ptr = &soundInfo->reg.NR44;
             break;
         }
 
@@ -963,13 +933,8 @@ void cgbMixerFunc(void)
                     if (channels->wavePointer != channels->currentPointer)
                     {
                         *nrx0ptr = 0x40;
-                        REG_WAVE_RAM0 = channels->wavePointer[0];
-                        REG_WAVE_RAM1 = channels->wavePointer[1];
-                        REG_WAVE_RAM2 = channels->wavePointer[2];
-                        REG_WAVE_RAM3 = channels->wavePointer[3];
                         channels->currentPointer = channels->wavePointer;
-                        cgb_set_wavram();
-
+                        cgb_set_wavram(channels->wavePointer);
                     }
                     *nrx0ptr = 0;
                     *nrx1ptr = channels->length;
@@ -1148,7 +1113,7 @@ void cgbMixerFunc(void)
         {
             if (ch < 4 && (channels->type & TONEDATA_TYPE_FIX))
             {
-                int dac_pwm_rate = REG_SOUNDBIAS_H;
+                int dac_pwm_rate = soundInfo->reg.SOUNDBIAS_H;
 
                 if (dac_pwm_rate < 0x40)        // if PWM rate = 32768 Hz
                     channels->freq = (channels->freq + 2) & 0x7fc;
@@ -1167,7 +1132,7 @@ void cgbMixerFunc(void)
         /* 4. apply envelope & volume to HW registers */
         if (channels->modify & CGB_CHANNEL_MO_VOL)
         {
-            REG_NR51 = (REG_NR51 & ~channels->panMask) | channels->pan;
+            soundInfo->reg.NR51 = (soundInfo->reg.NR51 & ~channels->panMask) | channels->pan;
             if (ch == 3)
             {
                 *nrx2ptr = gCgb3Vol[channels->envelopeVolume];

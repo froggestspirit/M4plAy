@@ -40,8 +40,8 @@ static float *out;
 int main(int argc, char **argv)
 {
     song = 400;  // 13
-    filename = "emerald.gba";  // sa2.gba
-    songTableAddress = 7031280;  // 11358028
+    filename = "emerald.gba";  // sa2.gba / gs.gba
+    songTableAddress = 7031280;  // 11358028 / 1852720
     if (argc > 1) filename = argv[1];
     if (argc > 2) songTableAddress = atoi(argv[2]);
     if (argc > 3) song = atoi(argv[3]);
