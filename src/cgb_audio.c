@@ -227,9 +227,9 @@ void cgb_audio_generate(uint16_t samplesPerFrame, float *outBuffer){
                 }else{
                     ch4Out--;
                 }
-                int avgDiv = 1;
+                float avgDiv = 1.0f;
                 while(ch4Samples >= 1){
-                    avgDiv++;
+                    avgDiv += 1.0f;
                     uint8_t lfsrCarry = 0;
                     if(gb.ch4LFSR[lfsrMode] & 2) lfsrCarry ^= 1;
                     gb.ch4LFSR[lfsrMode] >>= 1;

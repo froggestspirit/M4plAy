@@ -19,11 +19,6 @@ uint8_t RunMixerFrame(void *audioBuffer, int32_t samplesPerFrame) {
 
     static float playerCounter = 0;
     
-    if (mixer->lockStatus != PLAYER_UNLOCKED) {
-        return 0;
-    }
-    mixer->lockStatus = PLAYER_LOCKED;
-    
     playerCounter += samplesPerFrame;
     while (playerCounter >= mixer->samplesPerFrame) {
         playerCounter -= mixer->samplesPerFrame;
@@ -51,27 +46,22 @@ uint8_t RunMixerFrame(void *audioBuffer, int32_t samplesPerFrame) {
     cgb_audio_generate(samplesPerFrame, cgbBuffer);
 
     //struct SoundMixerState *mixer = SOUND_INFO_PTR;
-    if(mixer->lockStatus-PLAYER_UNLOCKED <= 1)
-    {
-        samplesPerFrame = mixer->samplesPerFrame * 2;
-        float *m4aBuffer = mixer->outBuffer;
-        float *cgbBuffer = mixer->cgbBuffer;
-        int32_t dmaCounter = mixer->dmaCounter;
+    samplesPerFrame = mixer->samplesPerFrame * 2;
+    float *m4aBuffer = mixer->outBuffer;
+    cgbBuffer = mixer->cgbBuffer;
 
-        if (dmaCounter > 1) {
-            m4aBuffer += samplesPerFrame * (mixer->pcmDmaPeriod - (dmaCounter - 1));
-        }
-
-        float *outBuf = audioBuffer;
-        for(uint32_t i = 0; i < samplesPerFrame; i++)
-            outBuf[i] = m4aBuffer[i] + cgbBuffer[i];
-
-        if((int8_t)(--mixer->dmaCounter) <= 0)
-            mixer->dmaCounter = mixer->pcmDmaPeriod;
-        
-        return 1;
+    if (dmaCounter > 1) {
+        m4aBuffer += samplesPerFrame * (mixer->pcmDmaPeriod - (dmaCounter - 1));
     }
-    return 0;
+
+    float *outBuf = audioBuffer;
+    for(uint32_t i = 0; i < samplesPerFrame; i++)
+        outBuf[i] = m4aBuffer[i] + cgbBuffer[i];
+
+    if((int8_t)(--mixer->dmaCounter) <= 0)
+        mixer->dmaCounter = mixer->pcmDmaPeriod;
+    
+    return 1;
 }
 
 
@@ -121,8 +111,6 @@ void SampleMixer(struct SoundMixerState *mixer, uint32_t scanlineLimit, uint16_t
             GenerateAudio(mixer, chan, wav, outBuffer, samplesPerFrame, divFreq);
         }
     }
-returnEarly:
-    mixer->lockStatus = PLAYER_UNLOCKED;
 }
 
 // Returns 1 if channel is still active after moving envelope forward a frame

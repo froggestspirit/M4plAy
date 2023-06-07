@@ -3,13 +3,6 @@
 #ifndef GUARD_GBA_M4A_INTERNAL_H
 #define GUARD_GBA_M4A_INTERNAL_H
 
-// ASCII encoding of 'Smsh' in reverse
-// This is presumably short for SMASH, the developer of MKS4AGB.
-#define ID_NUMBER 0x68736D53
-#define PLAYER_UNLOCKED ID_NUMBER
-#define PLAYER_LOCKED PLAYER_UNLOCKED+1
-
-
 #define C_V 0x40 // center value for PAN, BEND, and TUNE
 
 #define SOUND_MODE_REVERB_VAL   0x0000007F
@@ -292,8 +285,6 @@ struct SoundMixerState
     // values during sensitive operations for locking purposes.
     // This field should be volatile but isn't. This could potentially cause
     // race conditions.
-    volatile uint32_t lockStatus;
-
     volatile uint8_t dmaCounter;
 
     // Direct Sound
@@ -419,7 +410,6 @@ struct MusicPlayerInfo
     uint16_t fadeVolume;
     struct MusicPlayerTrack *tracks;
     struct ToneData *voicegroup;
-    volatile uint32_t lockStatus;
     MPlayMainFunc nextPlayerFunc;
     struct MusicPlayerInfo *nextPlayer;
 };
@@ -454,7 +444,6 @@ extern const uint8_t gNoiseTable[];
 
 extern const struct ToneData voicegroup000;
 
-#define NUM_MUSIC_PLAYERS 4
 #define MAX_LINES 0
 
 uint32_t umul3232H32(uint32_t multiplier, uint32_t multiplicand);
@@ -482,8 +471,6 @@ uint32_t cgbCalcFreqFunc(uint8_t, uint8_t, uint8_t);
 void DummyFunc(void);
 void MPlayJumpTableCopy(void **mplayJumpTable);
 void SampleFreqSet(uint32_t freq);
-void m4aSoundVSyncOn(void);
-void m4aSoundVSyncOff(void);
 
 void m4aMPlayTempoControl(struct MusicPlayerInfo *mplayInfo, uint16_t tempo);
 void m4aMPlayVolumeControl(struct MusicPlayerInfo *mplayInfo, uint16_t trackBits, uint16_t volume);

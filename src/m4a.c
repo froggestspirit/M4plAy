@@ -53,24 +53,14 @@ uint32_t MidiKeyToFreq(struct WaveData *wav, uint8_t key, uint8_t fineAdjust)
 
 void MPlayContinue(struct MusicPlayerInfo *mplayInfo)
 {
-    if (mplayInfo->lockStatus == ID_NUMBER)
-    {
-        mplayInfo->lockStatus++;
-        mplayInfo->status &= ~MUSICPLAYER_STATUS_PAUSE;
-        mplayInfo->lockStatus = ID_NUMBER;
-    }
+    mplayInfo->status &= ~MUSICPLAYER_STATUS_PAUSE;
 }
 
 void MPlayFadeOut(struct MusicPlayerInfo *mplayInfo, uint16_t speed)
 {
-    if (mplayInfo->lockStatus == ID_NUMBER)
-    {
-        mplayInfo->lockStatus++;
-        mplayInfo->fadeCounter = speed;
-        mplayInfo->fadeInterval = speed;
-        mplayInfo->fadeVolume = (64 << FADE_VOL_SHIFT);
-        mplayInfo->lockStatus = ID_NUMBER;
-    }
+    mplayInfo->fadeCounter = speed;
+    mplayInfo->fadeInterval = speed;
+    mplayInfo->fadeVolume = (64 << FADE_VOL_SHIFT);
 }
 
 void m4aSoundInit(uint32_t freq, uint8_t *_music, uint32_t _songTableAddress)
@@ -80,19 +70,16 @@ void m4aSoundInit(uint32_t freq, uint8_t *_music, uint32_t _songTableAddress)
     int32_t i;
 
     SoundInit(&gSoundInfo);
+    SampleFreqSet(freq);
     MPlayExtender(gCgbChans);
     m4aSoundMode(SOUND_MODE_DA_BIT_8
-               | SOUND_MODE_FREQ_42048
                | (12 << SOUND_MODE_MASVOL_SHIFT)
                | (5 << SOUND_MODE_MAXCHN_SHIFT));
 
-    for (i = 0; i < NUM_MUSIC_PLAYERS; i++)
-    {
-        struct MusicPlayerInfo *mplayInfo = &gMPlayInfo_BGM;
-        MPlayOpen(mplayInfo, &gMPlayTrack_BGM, MAX_MUSICPLAYER_TRACKS);
-        mplayInfo->checkSongPriority = 0;
-        mplayInfo->memAccArea = gMPlayMemAccArea;
-    }
+    struct MusicPlayerInfo *mplayInfo = &gMPlayInfo_BGM;
+    MPlayOpen(mplayInfo, &gMPlayTrack_BGM, MAX_MUSICPLAYER_TRACKS);
+    mplayInfo->checkSongPriority = 0;
+    mplayInfo->memAccArea = gMPlayMemAccArea;
     cgb_audio_init(freq);
 }
 
@@ -163,8 +150,7 @@ void m4aMPlayAllStop(void)
 {
     int32_t i;
 
-    for (i = 0; i < NUM_MUSIC_PLAYERS; i++)
-        m4aMPlayStop(&gMPlayInfo_BGM);
+    m4aMPlayStop(&gMPlayInfo_BGM);
 }
 
 void m4aMPlayContinue(struct MusicPlayerInfo *mplayInfo)
@@ -176,8 +162,7 @@ void m4aMPlayAllContinue(void)
 {
     int32_t i;
 
-    for (i = 0; i < NUM_MUSIC_PLAYERS; i++)
-        MPlayContinue(&gMPlayInfo_BGM);
+    MPlayContinue(&gMPlayInfo_BGM);
 }
 
 void m4aMPlayFadeOut(struct MusicPlayerInfo *mplayInfo, uint16_t speed)
@@ -187,27 +172,17 @@ void m4aMPlayFadeOut(struct MusicPlayerInfo *mplayInfo, uint16_t speed)
 
 void m4aMPlayFadeOutTemporarily(struct MusicPlayerInfo *mplayInfo, uint16_t speed)
 {
-    if (mplayInfo->lockStatus == ID_NUMBER)
-    {
-        mplayInfo->lockStatus++;
-        mplayInfo->fadeCounter = speed;
-        mplayInfo->fadeInterval = speed;
-        mplayInfo->fadeVolume = (64 << FADE_VOL_SHIFT) | TEMPORARY_FADE;
-        mplayInfo->lockStatus = ID_NUMBER;
-    }
+    mplayInfo->fadeCounter = speed;
+    mplayInfo->fadeInterval = speed;
+    mplayInfo->fadeVolume = (64 << FADE_VOL_SHIFT) | TEMPORARY_FADE;
 }
 
 void m4aMPlayFadeIn(struct MusicPlayerInfo *mplayInfo, uint16_t speed)
 {
-    if (mplayInfo->lockStatus == ID_NUMBER)
-    {
-        mplayInfo->lockStatus++;
-        mplayInfo->fadeCounter = speed;
-        mplayInfo->fadeInterval = speed;
-        mplayInfo->fadeVolume = (0 << FADE_VOL_SHIFT) | FADE_IN;
-        mplayInfo->status &= ~MUSICPLAYER_STATUS_PAUSE;
-        mplayInfo->lockStatus = ID_NUMBER;
-    }
+    mplayInfo->fadeCounter = speed;
+    mplayInfo->fadeInterval = speed;
+    mplayInfo->fadeVolume = (0 << FADE_VOL_SHIFT) | FADE_IN;
+    mplayInfo->status &= ~MUSICPLAYER_STATUS_PAUSE;
 }
 
 void m4aMPlayImmInit(struct MusicPlayerInfo *mplayInfo)
@@ -238,8 +213,6 @@ void MPlayExtender(struct CgbChannel *cgbChans)
 {
     struct SoundMixerState *soundInfo = SOUND_INFO_PTR;
 
-    uint32_t lockStatus;
-
     soundInfo->reg.NR50 = 0; // set master volume to zero
     soundInfo->reg.NR51 = 0; // set master volume to zero
     soundInfo->reg.NR52 = SOUND_MASTER_ENABLE
@@ -261,14 +234,6 @@ void MPlayExtender(struct CgbChannel *cgbChans)
         cgb_set_envelope(i, 8);
         cgb_trigger_note(i);
     }
-
-
-    lockStatus = soundInfo->lockStatus;
-
-    if (lockStatus != ID_NUMBER)
-        return;
-
-    soundInfo->lockStatus++;
 
     gMPlayJumpTable[8] = ply_memacc;
     gMPlayJumpTable[17] = MP2K_event_lfos;
@@ -296,8 +261,6 @@ void MPlayExtender(struct CgbChannel *cgbChans)
     cgbChans[2].panMask = 0x44;
     cgbChans[3].type = 4;
     cgbChans[3].panMask = 0x88;
-
-    soundInfo->lockStatus = lockStatus;
 }
 
 
@@ -309,8 +272,6 @@ void ClearChain(void *x)
 
 void SoundInit(struct SoundMixerState *soundInfo)
 {
-    soundInfo->lockStatus = 0;
-
     soundInfo->reg.NR52 = SOUND_MASTER_ENABLE
                    | SOUND_4_ON
                    | SOUND_3_ON
@@ -335,39 +296,28 @@ void SoundInit(struct SoundMixerState *soundInfo)
     MPlayJumpTableCopy(gMPlayJumpTable);
 
     soundInfo->mp2kEventFuncTable = gMPlayJumpTable;
-
-    SampleFreqSet(SOUND_MODE_FREQ_42048);
-
-    soundInfo->lockStatus = ID_NUMBER;
 }
 
 void SampleFreqSet(uint32_t freq)
 {
     struct SoundMixerState *soundInfo = SOUND_INFO_PTR;
 
-    freq = (freq & 0xF0000) >> 16;
-    soundInfo->freq = freq;
+    //freq = (freq & 0xF0000) >> 16;
+    //soundInfo->freq = freq;
 
-    soundInfo->samplesPerFrame = 701;
+    soundInfo->samplesPerFrame = (uint32_t)((freq / 60.0f) + 0.5f);
 
     soundInfo->pcmDmaPeriod = PCM_DMA_BUF_SIZE / soundInfo->samplesPerFrame;
 
     soundInfo->sampleRate = 60.0f * soundInfo->samplesPerFrame;
 
     soundInfo->divFreq = 1.0f / soundInfo->sampleRate;
-
-    m4aSoundVSyncOn();
 }
 
 void m4aSoundMode(uint32_t mode)
 {
     struct SoundMixerState *soundInfo = SOUND_INFO_PTR;
     uint32_t temp;
-
-    if (soundInfo->lockStatus != ID_NUMBER)
-        return;
-
-    soundInfo->lockStatus++;
 
     temp = mode & (SOUND_MODE_REVERB_SET | SOUND_MODE_REVERB_VAL);
 
@@ -382,7 +332,7 @@ void m4aSoundMode(uint32_t mode)
 
         // The following line is a fix, not sure how accurate it's supposed to be?
         soundInfo->numChans = MAX_DIRECTSOUND_CHANNELS;
-        // The following line is the old code, possibly bugged?
+        // The following line is the old code
         //soundInfo->numChans = temp >> SOUND_MODE_MAXCHN_SHIFT;
         
         temp = MAX_DIRECTSOUND_CHANNELS;
@@ -412,12 +362,7 @@ void m4aSoundMode(uint32_t mode)
     temp = mode & SOUND_MODE_FREQ;
 
     if (temp)
-    {
-        m4aSoundVSyncOff();
         SampleFreqSet(temp);
-    }
-
-    soundInfo->lockStatus = ID_NUMBER;
 }
 
 void SoundClear(void)
@@ -425,11 +370,6 @@ void SoundClear(void)
     struct SoundMixerState *soundInfo = SOUND_INFO_PTR;
     int32_t i;
     void *chan;
-
-    if (soundInfo->lockStatus != ID_NUMBER)
-        return;
-
-    soundInfo->lockStatus++;
 
     i = MAX_DIRECTSOUND_CHANNELS;
     chan = &soundInfo->chans[0];
@@ -455,33 +395,6 @@ void SoundClear(void)
             chan = (void *)((int32_t)chan + sizeof(struct CgbChannel));
         }
     }
-
-    soundInfo->lockStatus = ID_NUMBER;
-}
-
-void m4aSoundVSyncOff(void)
-{
-    struct SoundMixerState *soundInfo = SOUND_INFO_PTR;
-
-    if (soundInfo->lockStatus >= ID_NUMBER && soundInfo->lockStatus <= ID_NUMBER + 1)
-    {
-        soundInfo->lockStatus += 10;
-
-        //CpuFill32(0, soundInfo->outBuffer, sizeof(soundInfo->outBuffer));
-    }
-}
-
-void m4aSoundVSyncOn(void)
-{
-    struct SoundMixerState *soundInfo = SOUND_INFO_PTR;
-    uint32_t lockStatus = soundInfo->lockStatus;
-
-    if (lockStatus == ID_NUMBER)
-        return;
-
-
-    soundInfo->dmaCounter = 0;
-    soundInfo->lockStatus = lockStatus - 10;
 }
 
 void MPlayOpen(struct MusicPlayerInfo *mplayInfo, struct MusicPlayerTrack *tracks, uint8_t trackCount)
@@ -493,11 +406,6 @@ void MPlayOpen(struct MusicPlayerInfo *mplayInfo, struct MusicPlayerTrack *track
 
     if (trackCount > MAX_MUSICPLAYER_TRACKS)
         trackCount = MAX_MUSICPLAYER_TRACKS;
-
-    if (soundInfo->lockStatus != ID_NUMBER)
-        return;
-
-    soundInfo->lockStatus++;
 
     mplayInfo->tracks = tracks;
     mplayInfo->trackCount = trackCount;
@@ -520,8 +428,6 @@ void MPlayOpen(struct MusicPlayerInfo *mplayInfo, struct MusicPlayerTrack *track
 
     soundInfo->firstPlayer = (uintptr_t)mplayInfo;
     soundInfo->firstPlayerFunc = (uintptr_t)MP2KPlayerMain;
-    soundInfo->lockStatus = ID_NUMBER;
-    mplayInfo->lockStatus = ID_NUMBER;
 }
 
 void MPlayStart(struct MusicPlayerInfo *mplayInfo, struct SongHeader *songHeader)
@@ -531,9 +437,6 @@ void MPlayStart(struct MusicPlayerInfo *mplayInfo, struct SongHeader *songHeader
     uint8_t checkSongPriority;
     struct MusicPlayerTrack *track;
 
-    if (mplayInfo->lockStatus != ID_NUMBER)
-        return;
-
     checkSongPriority = mplayInfo->checkSongPriority;
 
     if (!checkSongPriority
@@ -542,7 +445,6 @@ void MPlayStart(struct MusicPlayerInfo *mplayInfo, struct SongHeader *songHeader
                 || (mplayInfo->status & MUSICPLAYER_STATUS_PAUSE)))
         || (mplayInfo->priority <= songHeader->priority))
     {
-        mplayInfo->lockStatus++;
         mplayInfo->status = 0;
         mplayInfo->songHeader = songHeader;
         mplayInfo->voicegroup = songHeader->instrument;
@@ -579,8 +481,6 @@ void MPlayStart(struct MusicPlayerInfo *mplayInfo, struct SongHeader *songHeader
 
         if (songHeader->reverb & SOUND_MODE_REVERB_SET)
             m4aSoundMode(songHeader->reverb);
-
-        mplayInfo->lockStatus = ID_NUMBER;
     }
 }
 
@@ -589,10 +489,6 @@ void m4aMPlayStop(struct MusicPlayerInfo *mplayInfo)
     int32_t i;
     struct MusicPlayerTrack *track;
 
-    if (mplayInfo->lockStatus != ID_NUMBER)
-        return;
-
-    mplayInfo->lockStatus++;
     mplayInfo->status |= MUSICPLAYER_STATUS_PAUSE;
 
     i = mplayInfo->trackCount;
@@ -604,8 +500,6 @@ void m4aMPlayStop(struct MusicPlayerInfo *mplayInfo)
         i--;
         track++;
     }
-
-    mplayInfo->lockStatus = ID_NUMBER;
 }
 
 void FadeOutBody(struct MusicPlayerInfo *mplayInfo)
@@ -1163,13 +1057,8 @@ void cgbMixerFunc(void)
 
 void m4aMPlayTempoControl(struct MusicPlayerInfo *mplayInfo, uint16_t tempo)
 {
-    if (mplayInfo->lockStatus == ID_NUMBER)
-    {
-        mplayInfo->lockStatus++;
         mplayInfo->tempoScale = tempo;
         mplayInfo->tempoInterval = (mplayInfo->tempoRawBPM * mplayInfo->tempoScale) >> 8;
-        mplayInfo->lockStatus = ID_NUMBER;
-    }
 }
 
 void m4aMPlayVolumeControl(struct MusicPlayerInfo *mplayInfo, uint16_t trackBits, uint16_t volume)
@@ -1177,11 +1066,6 @@ void m4aMPlayVolumeControl(struct MusicPlayerInfo *mplayInfo, uint16_t trackBits
     int32_t i;
     uint32_t bit;
     struct MusicPlayerTrack *track;
-
-    if (mplayInfo->lockStatus != ID_NUMBER)
-        return;
-
-    mplayInfo->lockStatus++;
 
     i = mplayInfo->trackCount;
     track = mplayInfo->tracks;
@@ -1202,8 +1086,6 @@ void m4aMPlayVolumeControl(struct MusicPlayerInfo *mplayInfo, uint16_t trackBits
         track++;
         bit <<= 1;
     }
-
-    mplayInfo->lockStatus = ID_NUMBER;
 }
 
 void m4aMPlayPitchControl(struct MusicPlayerInfo *mplayInfo, uint16_t trackBits, int16_t pitch)
@@ -1211,11 +1093,6 @@ void m4aMPlayPitchControl(struct MusicPlayerInfo *mplayInfo, uint16_t trackBits,
     int32_t i;
     uint32_t bit;
     struct MusicPlayerTrack *track;
-
-    if (mplayInfo->lockStatus != ID_NUMBER)
-        return;
-
-    mplayInfo->lockStatus++;
 
     i = mplayInfo->trackCount;
     track = mplayInfo->tracks;
@@ -1237,8 +1114,6 @@ void m4aMPlayPitchControl(struct MusicPlayerInfo *mplayInfo, uint16_t trackBits,
         track++;
         bit <<= 1;
     }
-
-    mplayInfo->lockStatus = ID_NUMBER;
 }
 
 void m4aMPlayPanpotControl(struct MusicPlayerInfo *mplayInfo, uint16_t trackBits, int8_t pan)
@@ -1246,11 +1121,6 @@ void m4aMPlayPanpotControl(struct MusicPlayerInfo *mplayInfo, uint16_t trackBits
     int32_t i;
     uint32_t bit;
     struct MusicPlayerTrack *track;
-
-    if (mplayInfo->lockStatus != ID_NUMBER)
-        return;
-
-    mplayInfo->lockStatus++;
 
     i = mplayInfo->trackCount;
     track = mplayInfo->tracks;
@@ -1271,8 +1141,6 @@ void m4aMPlayPanpotControl(struct MusicPlayerInfo *mplayInfo, uint16_t trackBits
         track++;
         bit <<= 1;
     }
-
-    mplayInfo->lockStatus = ID_NUMBER;
 }
 
 void ClearModM(struct MusicPlayerTrack *track)
@@ -1291,11 +1159,6 @@ void m4aMPlayModDepthSet(struct MusicPlayerInfo *mplayInfo, uint16_t trackBits, 
     int32_t i;
     uint32_t bit;
     struct MusicPlayerTrack *track;
-
-    if (mplayInfo->lockStatus != ID_NUMBER)
-        return;
-
-    mplayInfo->lockStatus++;
 
     i = mplayInfo->trackCount;
     track = mplayInfo->tracks;
@@ -1318,8 +1181,6 @@ void m4aMPlayModDepthSet(struct MusicPlayerInfo *mplayInfo, uint16_t trackBits, 
         track++;
         bit <<= 1;
     }
-
-    mplayInfo->lockStatus = ID_NUMBER;
 }
 
 void m4aMPlayLFOSpeedSet(struct MusicPlayerInfo *mplayInfo, uint16_t trackBits, uint8_t lfoSpeed)
@@ -1327,11 +1188,6 @@ void m4aMPlayLFOSpeedSet(struct MusicPlayerInfo *mplayInfo, uint16_t trackBits, 
     int32_t i;
     uint32_t bit;
     struct MusicPlayerTrack *track;
-
-    if (mplayInfo->lockStatus != ID_NUMBER)
-        return;
-
-    mplayInfo->lockStatus++;
 
     i = mplayInfo->trackCount;
     track = mplayInfo->tracks;
@@ -1354,8 +1210,6 @@ void m4aMPlayLFOSpeedSet(struct MusicPlayerInfo *mplayInfo, uint16_t trackBits, 
         track++;
         bit <<= 1;
     }
-
-    mplayInfo->lockStatus = ID_NUMBER;
 }
 
 #define MEMACC_COND_JUMP(cond) \
