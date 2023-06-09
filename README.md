@@ -1,11 +1,11 @@
 M4A player based on the pokeemerald pc port
 
-This will create a library that can be linked
+example requires libportaudio (portaudio-19 on linux)
 
-example requires libportaudio
+usage: M4plAy123 [rom] [song number] [song table offset]
 
-files converted with AdvanceRipper
+Song table offset is optional. if not provided, the rom will be attempted to be scanned for it
 
-usage: M4plAy [file] [song number]
+You may not use this for any commercial projects, it's based on decompiled code. I'm also not to be held liable for how it's used
 
-All examples are not owned by me
+
