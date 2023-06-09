@@ -315,7 +315,7 @@ void SampleFreqSet(uint32_t freq)
 
     soundInfo->divFreq = 1.0f / soundInfo->sampleRate;
 
-    soundInfo->origFreqAdj = (60.0f * soundInfo->samplesPerFrame) / (getOrigSampleRate(soundInfo->freq) * 59.727678571);
+    soundInfo->origFreq = (getOrigSampleRate(soundInfo->freq) * 59.727678571);
 
     soundInfo->outBuffer = malloc(sizeof(float) * soundInfo->samplesPerDma * 2);
     soundInfo->cgbBuffer = malloc(sizeof(float) * soundInfo->samplesPerDma * 2);

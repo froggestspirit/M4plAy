@@ -248,10 +248,13 @@ static inline void GenerateAudio(struct SoundMixerState *mixer, struct SoundChan
         chan->currentPointer = currentPointer;
     } else {*/
     float finePos = chan->fw;
-    float romSamplesPerOutputSample = chan->freq * divFreq;
+    float romSamplesPerOutputSample = divFreq;
 
-    //if (chan->type == 8)
-    //    romSamplesPerOutputSample *= mixer->origFreqAdj;
+    if (chan->type == 8){
+        romSamplesPerOutputSample *= mixer->origFreq;
+    }else{
+        romSamplesPerOutputSample *= chan->freq;
+    }
     int_fast16_t b = currentPointer[0];
     int_fast16_t m = currentPointer[1] - b;
     currentPointer += 1;

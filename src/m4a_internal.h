@@ -300,7 +300,7 @@ struct SoundMixerState
     int32_t samplesPerFrame;
     int32_t samplesPerDma;  // samplesPerFrame * pcmDmaPeriod
     int32_t sampleRate;
-    float origFreqAdj;  // for adjusting original freq to the new sample rate
+    float origFreq;  // for adjusting original freq to the new sample rate
     float divFreq;
     struct CgbChannel *cgbChans;
     MPlayMainFunc firstPlayerFunc;
