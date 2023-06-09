@@ -1,12 +1,9 @@
 #include <stddef.h>
 #include <stdint.h>
-#include "io_reg.h"
 #include "mp2k_common.h"
 #include "cgb_audio.h"
 #include "m4a_internal.h"
 
-#define VCOUNT_VBLANK 160
-#define TOTAL_SCANLINES 228
 
 extern struct SoundMixerState *SOUND_INFO_PTR;
 
@@ -20,22 +17,10 @@ uint8_t RunMixerFrame(void *audioBuffer, int32_t samplesPerFrame) {
 
     static float playerCounter = 0;
     
-    if (mixer->lockStatus != PLAYER_UNLOCKED) {
-        return 0;
-    }
-    mixer->lockStatus = PLAYER_LOCKED;
-    
     playerCounter += samplesPerFrame;
     while (playerCounter >= mixer->samplesPerFrame) {
         playerCounter -= mixer->samplesPerFrame;
         uint32_t maxScanlines = mixer->maxScanlines;
-        if (mixer->maxScanlines != 0) {
-            uint32_t vcount = REG_VCOUNT;
-            maxScanlines += vcount;
-            if (vcount < VCOUNT_VBLANK) {
-                maxScanlines += TOTAL_SCANLINES;
-            }
-        }
         
         if (mixer->firstPlayerFunc != NULL) {
             mixer->firstPlayerFunc(mixer->firstPlayer);
@@ -54,35 +39,28 @@ uint8_t RunMixerFrame(void *audioBuffer, int32_t samplesPerFrame) {
     }
     
     //MixerRamFunc mixerRamFunc = ((MixerRamFunc)MixerCodeBuffer);
-    SampleMixer(mixer, 0, samplesPerFrame, outBuffer, dmaCounter, PCM_DMA_BUF_SIZE);
+    SampleMixer(mixer, 0, samplesPerFrame, outBuffer, dmaCounter, mixer->samplesPerDma);
 
     cgb_audio_generate(samplesPerFrame, cgbBuffer);
 
     //struct SoundMixerState *mixer = SOUND_INFO_PTR;
-    if(mixer->lockStatus-PLAYER_UNLOCKED <= 1)
-    {
-        samplesPerFrame = mixer->samplesPerFrame * 2;
-        float *m4aBuffer = mixer->outBuffer;
-        float *cgbBuffer = mixer->cgbBuffer;
-        int32_t dmaCounter = mixer->dmaCounter;
+    samplesPerFrame = mixer->samplesPerFrame * 2;
+    float *m4aBuffer = mixer->outBuffer;
+    cgbBuffer = mixer->cgbBuffer;
 
-        if (dmaCounter > 1) {
-            m4aBuffer += samplesPerFrame * (mixer->pcmDmaPeriod - (dmaCounter - 1));
-        }
-
-        float *outBuf = audioBuffer;
-        for(uint32_t i = 0; i < samplesPerFrame; i++)
-            outBuf[i] = m4aBuffer[i] + cgbBuffer[i];
-
-        if((int8_t)(--mixer->dmaCounter) <= 0)
-            mixer->dmaCounter = mixer->pcmDmaPeriod;
-        
-        return 1;
+    if (dmaCounter > 1) {
+        m4aBuffer += samplesPerFrame * (mixer->pcmDmaPeriod - (dmaCounter - 1));
     }
-    return 0;
+
+    float *outBuf = audioBuffer;
+    for(uint32_t i = 0; i < samplesPerFrame; i++)
+        outBuf[i] = m4aBuffer[i] + cgbBuffer[i];
+
+    if((int8_t)(--mixer->dmaCounter) <= 0)
+        mixer->dmaCounter = mixer->pcmDmaPeriod;
+    
+    return 1;
 }
-
-
 
 //__attribute__((target("thumb")))
 void SampleMixer(struct SoundMixerState *mixer, uint32_t scanlineLimit, uint16_t samplesPerFrame, float *outBuffer, uint8_t dmaCounter, uint16_t maxBufSize) {
@@ -123,24 +101,12 @@ void SampleMixer(struct SoundMixerState *mixer, uint32_t scanlineLimit, uint16_t
     for (int i = 0; i < numChans; i++, chan++) {
         struct WaveData *wav = chan->wav;
         
-        if (scanlineLimit != 0) {
-            uint_fast16_t vcount = REG_VCOUNT;
-            if (vcount < VCOUNT_VBLANK) {
-                vcount += TOTAL_SCANLINES;
-            }
-            if (vcount >= scanlineLimit) {
-                goto returnEarly;
-            }
-        }
-        
         if (TickEnvelope(chan, wav)) 
         {
 
             GenerateAudio(mixer, chan, wav, outBuffer, samplesPerFrame, divFreq);
         }
     }
-returnEarly:
-    mixer->lockStatus = PLAYER_UNLOCKED;
 }
 
 // Returns 1 if channel is still active after moving envelope forward a frame
@@ -282,8 +248,13 @@ static inline void GenerateAudio(struct SoundMixerState *mixer, struct SoundChan
         chan->currentPointer = currentPointer;
     } else {*/
     float finePos = chan->fw;
-    float romSamplesPerOutputSample = chan->freq * divFreq;
+    float romSamplesPerOutputSample = divFreq;
 
+    if (chan->type == 8){
+        romSamplesPerOutputSample *= mixer->origFreq;
+    }else{
+        romSamplesPerOutputSample *= chan->freq;
+    }
     int_fast16_t b = currentPointer[0];
     int_fast16_t m = currentPointer[1] - b;
     currentPointer += 1;

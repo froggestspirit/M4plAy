@@ -3,8 +3,6 @@
 #include "mp2k_common.h"
 #include "m4a_internal.h"
 
-#define PCM_DMA_BUF_SIZE 4907
-
 static uint32_t MidiKeyToFreq(struct WaveData *wav, uint8_t key, uint8_t pitch);
 extern void * const gMPlayJumpTableTemplate[];
 extern const uint8_t gScaleTable[];
@@ -231,22 +229,17 @@ void MP2K_event_port(struct MusicPlayerInfo *unused, struct MusicPlayerTrack *tr
 void MP2KPlayerMain(void *voidPtrPlayer) {
     struct MusicPlayerInfo *player = (struct MusicPlayerInfo *)voidPtrPlayer;
     struct SoundMixerState *mixer = SOUND_INFO_PTR;
-
-    if (player->lockStatus != PLAYER_UNLOCKED) {
-        return;
-    }
-    player->lockStatus = PLAYER_LOCKED;
     
     if (player->nextPlayerFunc != NULL) {
         player->nextPlayerFunc(player->nextPlayer);
     }
     
     if (player->status & MUSICPLAYER_STATUS_PAUSE) {
-        goto returnEarly;
+        return;
     }
     FadeOutBody(voidPtrPlayer);
     if (player->status & MUSICPLAYER_STATUS_PAUSE) {
-        goto returnEarly;
+        return;
     }
     
     player->tempoCounter += player->tempoInterval;
@@ -345,7 +338,7 @@ void MP2KPlayerMain(void *voidPtrPlayer) {
         player->clock++;
         if (trackBits == 0) {
             player->status = MUSICPLAYER_STATUS_PAUSE;
-            goto returnEarly;
+            return;
         }
         player->status = trackBits;
         player->tempoCounter -= 150;
@@ -388,8 +381,6 @@ void MP2KPlayerMain(void *voidPtrPlayer) {
         track->flags &= ~0xF;
     }
     while(++i < player->trackCount);
-returnEarly: ;
-    player->lockStatus = PLAYER_UNLOCKED;
 }
 
 void TrackStop(struct MusicPlayerInfo *player, struct MusicPlayerTrack *track) {

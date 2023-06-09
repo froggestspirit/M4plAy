@@ -3,13 +3,6 @@
 #ifndef GUARD_GBA_M4A_INTERNAL_H
 #define GUARD_GBA_M4A_INTERNAL_H
 
-// ASCII encoding of 'Smsh' in reverse
-// This is presumably short for SMASH, the developer of MKS4AGB.
-#define ID_NUMBER 0x68736D53
-#define PLAYER_UNLOCKED ID_NUMBER
-#define PLAYER_LOCKED PLAYER_UNLOCKED+1
-
-
 #define C_V 0x40 // center value for PAN, BEND, and TUNE
 
 #define SOUND_MODE_REVERB_VAL   0x0000007F
@@ -203,7 +196,6 @@ struct SoundChannel
 };
 
 #define MAX_DIRECTSOUND_CHANNELS 16
-#define PCM_DMA_BUF_SIZE 4907 // size of Direct Sound buffer
 
 struct MusicPlayerInfo;
 
@@ -215,14 +207,83 @@ typedef uint32_t (*MidiKeyToCgbFreqFunc)(uint8_t, uint8_t, uint8_t);
 typedef void (*ExtVolPitFunc)(void);
 typedef void (*MPlayMainFunc)(struct MusicPlayerInfo *);
 
+// SOUNDCNT_H
+#define SOUND_CGB_MIX_QUARTER 0x0000
+#define SOUND_CGB_MIX_HALF    0x0001
+#define SOUND_CGB_MIX_FULL    0x0002
+#define SOUND_A_MIX_HALF      0x0000
+#define SOUND_A_MIX_FULL      0x0004
+#define SOUND_B_MIX_HALF      0x0000
+#define SOUND_B_MIX_FULL      0x0008
+#define SOUND_ALL_MIX_FULL    0x000E
+#define SOUND_A_RIGHT_OUTPUT  0x0100
+#define SOUND_A_LEFT_OUTPUT   0x0200
+#define SOUND_A_TIMER_0       0x0000
+#define SOUND_A_TIMER_1       0x0400
+#define SOUND_A_FIFO_RESET    0x0800
+#define SOUND_B_RIGHT_OUTPUT  0x1000
+#define SOUND_B_LEFT_OUTPUT   0x2000
+#define SOUND_B_TIMER_0       0x0000
+#define SOUND_B_TIMER_1       0x4000
+#define SOUND_B_FIFO_RESET    0x8000
+
+// SOUNDCNT_X
+#define SOUND_1_ON          0x0001
+#define SOUND_2_ON          0x0002
+#define SOUND_3_ON          0x0004
+#define SOUND_4_ON          0x0008
+#define SOUND_MASTER_ENABLE 0x0080
+
+struct SoundIO
+{
+    uint8_t NR10;        
+    uint8_t NR10x;        
+    uint8_t NR11;        
+    uint8_t NR12;        
+    union{
+        uint16_t SOUND1CNT_X; 
+        struct{
+            uint8_t NR13;        
+            uint8_t NR14;
+        };
+    };        
+    uint8_t NR21;        
+    uint8_t NR22;        
+    union{
+        uint16_t SOUND2CNT_H; 
+        struct{
+            uint8_t NR23;        
+            uint8_t NR24;        
+        };        
+    };        
+    uint8_t NR30;        
+    uint8_t NR30x;        
+    uint8_t NR31;        
+    uint8_t NR32;        
+    union{
+        uint16_t SOUND3CNT_X; 
+        struct{
+            uint8_t NR33;        
+            uint8_t NR34;        
+        };        
+    };        
+    uint8_t NR41;        
+    uint8_t NR42;        
+    uint8_t NR43;        
+    uint8_t NR44;        
+    uint8_t NR50;        
+    uint8_t NR51;        
+    uint16_t SOUNDCNT_H; 
+    uint8_t NR52;        
+    uint16_t SOUNDBIAS_H; 
+};
+
 struct SoundMixerState
 {
     // This field is normally equal to ID_NUMBER but it is set to other
     // values during sensitive operations for locking purposes.
     // This field should be volatile but isn't. This could potentially cause
     // race conditions.
-    volatile uint32_t lockStatus;
-
     volatile uint8_t dmaCounter;
 
     // Direct Sound
@@ -237,7 +298,9 @@ struct SoundMixerState
     uint8_t maxScanlines;
     uint8_t padding[3];
     int32_t samplesPerFrame;
+    int32_t samplesPerDma;  // samplesPerFrame * pcmDmaPeriod
     int32_t sampleRate;
+    float origFreq;  // for adjusting original freq to the new sample rate
     float divFreq;
     struct CgbChannel *cgbChans;
     MPlayMainFunc firstPlayerFunc;
@@ -252,9 +315,10 @@ struct SoundMixerState
     void *reserved3;
     void *reversed4;
     void *reserved5;
+    struct SoundIO reg;
     struct SoundChannel chans[MAX_DIRECTSOUND_CHANNELS];
-    float outBuffer[PCM_DMA_BUF_SIZE * 2];
-    float cgbBuffer[PCM_DMA_BUF_SIZE * 2];
+    float *outBuffer;
+    float *cgbBuffer;
 };
 
 struct SongHeader
@@ -347,7 +411,6 @@ struct MusicPlayerInfo
     uint16_t fadeVolume;
     struct MusicPlayerTrack *tracks;
     struct ToneData *voicegroup;
-    volatile uint32_t lockStatus;
     MPlayMainFunc nextPlayerFunc;
     struct MusicPlayerInfo *nextPlayer;
 };
@@ -382,7 +445,6 @@ extern const uint8_t gNoiseTable[];
 
 extern const struct ToneData voicegroup000;
 
-#define NUM_MUSIC_PLAYERS 4
 #define MAX_LINES 0
 
 uint32_t umul3232H32(uint32_t multiplier, uint32_t multiplicand);
@@ -410,8 +472,6 @@ uint32_t cgbCalcFreqFunc(uint8_t, uint8_t, uint8_t);
 void DummyFunc(void);
 void MPlayJumpTableCopy(void **mplayJumpTable);
 void SampleFreqSet(uint32_t freq);
-void m4aSoundVSyncOn(void);
-void m4aSoundVSyncOff(void);
 
 void m4aMPlayTempoControl(struct MusicPlayerInfo *mplayInfo, uint16_t tempo);
 void m4aMPlayVolumeControl(struct MusicPlayerInfo *mplayInfo, uint16_t trackBits, uint16_t volume);
