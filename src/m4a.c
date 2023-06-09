@@ -30,6 +30,10 @@ void offsetPointer(uintptr_t *ptr) {
     *ptr += (uintptr_t)musicData;
 }
 
+uint16_t getOrigSampleRate(uint8_t rate){
+    return gPcmSamplesPerVBlankTable[rate];
+}
+
 uint32_t MidiKeyToFreq(struct WaveData *wav, uint8_t key, uint8_t fineAdjust)
 {
     uint32_t val1;
@@ -63,18 +67,17 @@ void MPlayFadeOut(struct MusicPlayerInfo *mplayInfo, uint16_t speed)
     mplayInfo->fadeVolume = (64 << FADE_VOL_SHIFT);
 }
 
-void m4aSoundInit(uint32_t freq, uint8_t *_music, uint32_t _songTableAddress)
+void m4aSoundInit(uint32_t freq, uint8_t *_music, uint32_t _songTableAddress, uint32_t _mode)
 {
     musicData = _music;
     songTableOffset = _songTableAddress;
     int32_t i;
 
     SoundInit(&gSoundInfo);
+    gSoundInfo.freq = (((_mode >> 16) & 0xF) - 1);
     SampleFreqSet(freq);
     MPlayExtender(gCgbChans);
-    m4aSoundMode(SOUND_MODE_DA_BIT_8
-               | (12 << SOUND_MODE_MASVOL_SHIFT)
-               | (5 << SOUND_MODE_MAXCHN_SHIFT));
+    m4aSoundMode(_mode);
 
     struct MusicPlayerInfo *mplayInfo = &gMPlayInfo_BGM;
     MPlayOpen(mplayInfo, &gMPlayTrack_BGM, MAX_MUSICPLAYER_TRACKS);
@@ -302,16 +305,20 @@ void SampleFreqSet(uint32_t freq)
 {
     struct SoundMixerState *soundInfo = SOUND_INFO_PTR;
 
-    //freq = (freq & 0xF0000) >> 16;
-    //soundInfo->freq = freq;
-
     soundInfo->samplesPerFrame = (uint32_t)((freq / 60.0f) + 0.5f);
 
-    soundInfo->pcmDmaPeriod = PCM_DMA_BUF_SIZE / soundInfo->samplesPerFrame;
+    soundInfo->pcmDmaPeriod = 7;
+
+    soundInfo->samplesPerDma = soundInfo->pcmDmaPeriod * soundInfo->samplesPerFrame;
 
     soundInfo->sampleRate = 60.0f * soundInfo->samplesPerFrame;
 
     soundInfo->divFreq = 1.0f / soundInfo->sampleRate;
+
+    soundInfo->origFreqAdj = (60.0f * soundInfo->samplesPerFrame) / (getOrigSampleRate(soundInfo->freq) * 59.727678571);
+
+    soundInfo->outBuffer = malloc(sizeof(float) * soundInfo->samplesPerDma * 2);
+    soundInfo->cgbBuffer = malloc(sizeof(float) * soundInfo->samplesPerDma * 2);
 }
 
 void m4aSoundMode(uint32_t mode)
@@ -359,10 +366,10 @@ void m4aSoundMode(uint32_t mode)
         soundInfo->reg.SOUNDBIAS_H = (soundInfo->reg.SOUNDBIAS_H & 0x3F) | temp;
     }
 
-    temp = mode & SOUND_MODE_FREQ;
+    //temp = mode & SOUND_MODE_FREQ;
 
-    if (temp)
-        SampleFreqSet(temp);
+    //if (temp)
+    //    SampleFreqSet(temp);
 }
 
 void SoundClear(void)

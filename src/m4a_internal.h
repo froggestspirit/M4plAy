@@ -196,7 +196,6 @@ struct SoundChannel
 };
 
 #define MAX_DIRECTSOUND_CHANNELS 16
-#define PCM_DMA_BUF_SIZE 4907 // size of Direct Sound buffer
 
 struct MusicPlayerInfo;
 
@@ -299,7 +298,9 @@ struct SoundMixerState
     uint8_t maxScanlines;
     uint8_t padding[3];
     int32_t samplesPerFrame;
+    int32_t samplesPerDma;  // samplesPerFrame * pcmDmaPeriod
     int32_t sampleRate;
+    float origFreqAdj;  // for adjusting original freq to the new sample rate
     float divFreq;
     struct CgbChannel *cgbChans;
     MPlayMainFunc firstPlayerFunc;
@@ -316,8 +317,8 @@ struct SoundMixerState
     void *reserved5;
     struct SoundIO reg;
     struct SoundChannel chans[MAX_DIRECTSOUND_CHANNELS];
-    float outBuffer[PCM_DMA_BUF_SIZE * 2];
-    float cgbBuffer[PCM_DMA_BUF_SIZE * 2];
+    float *outBuffer;
+    float *cgbBuffer;
 };
 
 struct SongHeader

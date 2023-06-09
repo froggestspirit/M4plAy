@@ -3,8 +3,6 @@
 #include "mp2k_common.h"
 #include "m4a_internal.h"
 
-#define PCM_DMA_BUF_SIZE 4907
-
 static uint32_t MidiKeyToFreq(struct WaveData *wav, uint8_t key, uint8_t pitch);
 extern void * const gMPlayJumpTableTemplate[];
 extern const uint8_t gScaleTable[];

@@ -8,10 +8,12 @@
 
 #include "m4play.h"
 
-#define MIXER_FREQ 42048
+#define MIXER_FREQ 48000
 int song;
 uint32_t songTableAddress;
+uint32_t m4aMode;
 unsigned char music[0x8000000];
+uint32_t songFileSize;
 FILE *musicFile = NULL;
 char *filename;
 uint8_t isRunning = 1;
@@ -35,24 +37,60 @@ static int patestCallback(const void *inputBuffer, void *outputBuffer,
 }
 
 static paTestData data;
-static float *out;
+
+uint32_t scan(uint32_t *songTable, uint32_t *mode){
+    uint32_t pos = 0;
+    uint32_t temp;
+    while(pos < (songFileSize - 35)){
+        if((music[pos + 0] & 0xBF) == 0x89
+        && music[pos + 1] == 0x18
+        && music[pos + 2] == 0x0A
+        && music[pos + 3] == 0x68
+        && music[pos + 4] == 0x01
+        && music[pos + 5] == 0x68
+        && music[pos + 6] == 0x10
+        && music[pos + 7] == 0x1C
+        && (music[pos + 23] & 0xFE) == 0x08){
+            break;
+        }
+        pos += 4;
+    }
+    //printf("pos: 0x%x (%d)\n", pos, pos);
+    if(music[pos - 61] == 0x03
+    && music[pos - 57] == 0x04){
+        temp = (music[pos - 45] << 24) | (music[pos - 46] << 16) | (music[pos - 47] << 8) | music[pos - 48];
+    }else{
+        temp = (music[pos - 61] << 24) | (music[pos - 62] << 16) | (music[pos - 63] << 8) | music[pos - 64];
+    }
+    *mode = temp;
+    pos = (music[pos + 23] << 24) | (music[pos + 22] << 16) | (music[pos + 21] << 8) | music[pos + 20];
+    pos &= 0x7FFFFFF;
+    *songTable = pos;
+    return pos;
+}
 
 int main(int argc, char **argv)
 {
-    song = 400;  // 13
-    filename = "emerald.gba";  // sa2.gba / gs.gba
-    songTableAddress = 7031280;  // 11358028 / 1852720
+    song = 0;
+    filename = "";
+    songTableAddress = 0;
     if (argc > 1) filename = argv[1];
-    if (argc > 2) songTableAddress = atoi(argv[2]);
-    if (argc > 3) song = atoi(argv[3]);
+    if (argc > 2) song = atoi(argv[2]);
+    if (argc > 3) songTableAddress = atoi(argv[3]);
     musicFile = fopen(filename, "rb");
     if (0 != fseek(musicFile, 0, SEEK_END)) return 0;
-    int sizef = ftell(musicFile);
+    songFileSize = ftell(musicFile);
     if (0 != fseek(musicFile, 0, SEEK_SET)) return 0;
-    if (sizef != fread(music, 1, sizef, musicFile)) return 0;
+    if (songFileSize != fread(music, 1, songFileSize, musicFile)) return 0;
     fclose(musicFile);
     
-    m4aSoundInit(MIXER_FREQ, music, songTableAddress);
+    if(songTableAddress >= songFileSize || songTableAddress == 0)
+        scan(&songTableAddress, &m4aMode);
+    printf("songTableAddress: 0x%x (%d)\n", songTableAddress, songTableAddress);
+    printf("Max Channels: %d\n", (m4aMode >> 8) & 0xF);
+    printf("Volume: %d\n", (m4aMode >> 12) & 0xF);
+    printf("Original Rate: %.2fhz\n", getOrigSampleRate(((m4aMode >> 16) & 0xF) - 1) * 59.727678571);
+    m4aSoundInit(MIXER_FREQ, music, songTableAddress, m4aMode);
     m4aSongNumStart(song);
     // Initialize library before making any other calls.
     PaStream *stream;

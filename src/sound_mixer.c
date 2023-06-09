@@ -4,8 +4,6 @@
 #include "cgb_audio.h"
 #include "m4a_internal.h"
 
-#define VCOUNT_VBLANK 160
-#define TOTAL_SCANLINES 228
 
 extern struct SoundMixerState *SOUND_INFO_PTR;
 
@@ -41,7 +39,7 @@ uint8_t RunMixerFrame(void *audioBuffer, int32_t samplesPerFrame) {
     }
     
     //MixerRamFunc mixerRamFunc = ((MixerRamFunc)MixerCodeBuffer);
-    SampleMixer(mixer, 0, samplesPerFrame, outBuffer, dmaCounter, PCM_DMA_BUF_SIZE);
+    SampleMixer(mixer, 0, samplesPerFrame, outBuffer, dmaCounter, mixer->samplesPerDma);
 
     cgb_audio_generate(samplesPerFrame, cgbBuffer);
 
@@ -63,8 +61,6 @@ uint8_t RunMixerFrame(void *audioBuffer, int32_t samplesPerFrame) {
     
     return 1;
 }
-
-
 
 //__attribute__((target("thumb")))
 void SampleMixer(struct SoundMixerState *mixer, uint32_t scanlineLimit, uint16_t samplesPerFrame, float *outBuffer, uint8_t dmaCounter, uint16_t maxBufSize) {
@@ -254,6 +250,8 @@ static inline void GenerateAudio(struct SoundMixerState *mixer, struct SoundChan
     float finePos = chan->fw;
     float romSamplesPerOutputSample = chan->freq * divFreq;
 
+    //if (chan->type == 8)
+    //    romSamplesPerOutputSample *= mixer->origFreqAdj;
     int_fast16_t b = currentPointer[0];
     int_fast16_t m = currentPointer[1] - b;
     currentPointer += 1;
