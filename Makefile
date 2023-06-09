@@ -6,8 +6,6 @@ LDFLAGS := -lm -lportaudio -L./ -lm4play
 
 LIB_SRCS := src/*.c
 
-LIB_HEADERS := src/*.h
-
 SRCS := main.cpp
 
 HEADERS := m4play.h
@@ -17,7 +15,7 @@ HEADERS := m4play.h
 all: libm4play.a M4plAy123 tidy
 	@:
 
-libm4play.a: $(LIB_SRCS) $(LIB_HEADERS)
+libm4play.a: $(LIB_SRCS)
 	$(C) $(CFLAGS) $(LIB_SRCS) -c
 	$(AR) -cvq libm4play.a *.o
 
