@@ -11,6 +11,7 @@
 #define MIXER_FREQ 48000
 int song;
 uint32_t songTableAddress;
+uint32_t musicFileOffset;
 uint32_t m4aMode;
 unsigned char music[0x8000000];
 uint32_t songFileSize;
@@ -38,10 +39,21 @@ static int patestCallback(const void *inputBuffer, void *outputBuffer,
 
 static paTestData data;
 
-uint32_t scan(uint32_t *songTable, uint32_t *mode){
+uint32_t scan(uint32_t *mode, uint32_t *offset){
     uint32_t pos = 0;
     uint32_t temp;
-    while(pos < (songFileSize - 35)){
+
+    if(music[pos + 0] == 0x41  // AM4p format
+    && music[pos + 1] == 0x4D
+    && music[pos + 2] == 0x34
+    && music[pos + 3] == 0x70){
+        *mode = (music[pos + 39] << 24) | (music[pos + 38] << 16) | (music[pos + 37] << 8) | music[pos + 36];
+        temp = (music[pos + 11] << 24) | (music[pos + 10] << 16) | (music[pos + 9] << 8) | music[pos + 8];
+        *offset = ((music[pos + 15] << 24) | (music[pos + 14] << 16) | (music[pos + 13] << 8) | music[pos + 12]);
+        return (((music[pos + 35] << 24) | (music[pos + 34] << 16) | (music[pos + 33] << 8) | music[pos + 32])) & 0x7FFFFFF;
+    }
+
+    while(pos < (songFileSize - 35)){  // isn't AM4p, scan the rom
         if((music[pos + 0] & 0xBF) == 0x89
         && music[pos + 1] == 0x18
         && music[pos + 2] == 0x0A
@@ -58,15 +70,11 @@ uint32_t scan(uint32_t *songTable, uint32_t *mode){
     //printf("pos: 0x%x (%d)\n", pos, pos);
     if(music[pos - 61] == 0x03
     && music[pos - 57] == 0x04){
-        temp = (music[pos - 45] << 24) | (music[pos - 46] << 16) | (music[pos - 47] << 8) | music[pos - 48];
+        *mode = (music[pos - 45] << 24) | (music[pos - 46] << 16) | (music[pos - 47] << 8) | music[pos - 48];
     }else{
-        temp = (music[pos - 61] << 24) | (music[pos - 62] << 16) | (music[pos - 63] << 8) | music[pos - 64];
+        *mode = (music[pos - 61] << 24) | (music[pos - 62] << 16) | (music[pos - 63] << 8) | music[pos - 64];
     }
-    *mode = temp;
-    pos = (music[pos + 23] << 24) | (music[pos + 22] << 16) | (music[pos + 21] << 8) | music[pos + 20];
-    pos &= 0x7FFFFFF;
-    *songTable = pos;
-    return pos;
+    return ((music[pos + 23] << 24) | (music[pos + 22] << 16) | (music[pos + 21] << 8) | music[pos + 20]) & 0x7FFFFFF;
 }
 
 int main(int argc, char **argv)
@@ -74,6 +82,7 @@ int main(int argc, char **argv)
     song = 0;
     filename = "";
     songTableAddress = 0;
+    musicFileOffset = 0;
     if (argc > 1) filename = argv[1];
     if (argc > 2) song = atoi(argv[2]);
     if (argc > 3) songTableAddress = atoi(argv[3]);
@@ -84,13 +93,16 @@ int main(int argc, char **argv)
     if (songFileSize != fread(music, 1, songFileSize, musicFile)) return 0;
     fclose(musicFile);
     
-    if(songTableAddress >= songFileSize || songTableAddress == 0)
-        scan(&songTableAddress, &m4aMode);
+    if(songTableAddress >= songFileSize || songTableAddress == 0){
+        songTableAddress = scan(&m4aMode, &musicFileOffset);
+    }else{
+        scan(&m4aMode, &musicFileOffset);
+    }
     printf("songTableAddress: 0x%x (%d)\n", songTableAddress, songTableAddress);
     printf("Max Channels: %d\n", (m4aMode >> 8) & 0xF);
     printf("Volume: %d\n", (m4aMode >> 12) & 0xF);
     printf("Original Rate: %.2fhz\n", getOrigSampleRate(((m4aMode >> 16) & 0xF) - 1) * 59.727678571);
-    m4aSoundInit(MIXER_FREQ, music, songTableAddress, m4aMode);
+    m4aSoundInit(MIXER_FREQ, music, songTableAddress, m4aMode, musicFileOffset);
     m4aSongNumStart(song);
     // Initialize library before making any other calls.
     PaStream *stream;

@@ -5,6 +5,7 @@
 
 uint8_t *musicData;
 uint32_t songTableOffset;
+uint32_t musicOffset;
 
 extern const uint8_t gCgb3Vol[];
 
@@ -26,7 +27,7 @@ void MP2K_event_nxx();
 void MP2KPlayerMain();
 
 void offsetPointer(uintptr_t *ptr) {
-    *ptr -= 0x8000000;
+    *ptr -= 0x8000000 + musicOffset;
     *ptr += (uintptr_t)musicData;
 }
 
@@ -67,10 +68,11 @@ void MPlayFadeOut(struct MusicPlayerInfo *mplayInfo, uint16_t speed)
     mplayInfo->fadeVolume = (64 << FADE_VOL_SHIFT);
 }
 
-void m4aSoundInit(uint32_t freq, uint8_t *_music, uint32_t _songTableAddress, uint32_t _mode)
+void m4aSoundInit(uint32_t freq, uint8_t *_music, uint32_t _songTableAddress, uint32_t _mode, uint32_t _offset)
 {
     musicData = _music;
-    songTableOffset = _songTableAddress;
+    songTableOffset = _songTableAddress - _offset;
+    musicOffset = _offset;
     int32_t i;
 
     SoundInit(&gSoundInfo);
