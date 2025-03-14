@@ -426,12 +426,12 @@ void MPlayOpen(struct MusicPlayerInfo *mplayInfo, struct MusicPlayerTrack *track
     }
 
     // append music player and MPlayMain to linked list
-
-    if (soundInfo->firstPlayerFunc != NULL)
+      // disabled to avoid crashes in subsequent calls
+    /*if (soundInfo->firstPlayerFunc != NULL)
     {
         mplayInfo->nextPlayerFunc = soundInfo->firstPlayerFunc;
         mplayInfo->nextPlayer = soundInfo->firstPlayer;
-    }
+    }*/
 
     soundInfo->firstPlayer = (uintptr_t)mplayInfo;
     soundInfo->firstPlayerFunc = (uintptr_t)MP2KPlayerMain;
