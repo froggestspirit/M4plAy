@@ -69,6 +69,9 @@ void MPlayFadeOut(struct MusicPlayerInfo *mplayInfo, uint16_t speed)
 
 void m4aSoundInit(uint32_t freq, uint8_t *_music, uint32_t _songTableAddress, uint32_t _mode)
 {
+    memset(&gSoundInfo, 0, sizeof(gSoundInfo));
+    memset(&gMPlayInfo_BGM, 0, sizeof(gMPlayInfo_BGM));
+    memset(&gMPlayTrack_BGM, 0, sizeof(gMPlayTrack_BGM));
     musicData = _music;
     songTableOffset = _songTableAddress;
     int32_t i;
