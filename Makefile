@@ -20,7 +20,7 @@ libm4play.a: $(LIB_SRCS)
 	$(AR) -cvq libm4play.a *.o
 
 libm4play.so: $(LIB_SRCS)
-	$(C) $(CFLAGS) -fPIC -shared -o libm4play.so $(LIB_SRCS) -lm -lportaudio
+	$(C) $(CFLAGS) -fPIC -shared -o libm4play.so $(LIB_SRCS) -lm
 
 M4plAy123: $(SRCS) $(HEADERS)
 	g++ $(CFLAGS) $(SRCS) -o $@ $(LDFLAGS)
