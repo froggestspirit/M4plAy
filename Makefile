@@ -1,4 +1,5 @@
-C ?= gcc
+CC ?= gcc
+CXX ?= g++
 CFLAGS := -Wall
 AR ?= ar
 
@@ -16,14 +17,14 @@ all: libm4play.a M4plAy123 libm4play.so tidy
 	@:
 
 libm4play.a: $(LIB_SRCS)
-	$(C) $(CFLAGS) $(LIB_SRCS) -c
+	$(CC) $(CFLAGS) $(LIB_SRCS) -c
 	$(AR) -cvq libm4play.a *.o
 
 libm4play.so: $(LIB_SRCS)
-	$(C) $(CFLAGS) -fPIC -shared -o libm4play.so $(LIB_SRCS) -lm
+	$(CC) $(CFLAGS) -fPIC -shared -o libm4play.so $(LIB_SRCS) -lm
 
 M4plAy123: $(SRCS) $(HEADERS)
-	g++ $(CFLAGS) $(SRCS) -o $@ $(LDFLAGS)
+	$(CXX) $(CFLAGS) $(SRCS) -o $@ $(LDFLAGS)
 
 tidy:
 	$(RM) *.o
